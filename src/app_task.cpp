@@ -27,7 +27,7 @@ using namespace ::chip::DeviceLayer;
 namespace
 {
 constexpr chip::EndpointId kTemperatureSensorEndpointId = 1;
-constexpr chip::EndpointId kHumiditySensorEndpointId = 1;
+constexpr chip::EndpointId kHumiditySensorEndpointId = 2;
 
 constexpr int16_t kTemperatureMeasurementAttributeInvalidValue = 0x8000;
 constexpr int16_t kHumidityMeasurementAttributeInvalidValue = 0xffff;
@@ -73,7 +73,7 @@ void AppTask::UpdateTemperatureClusterState()
 			/* Read value exceeds permitted limits, so assign invalid value code to it. */
 			newValue = kTemperatureMeasurementAttributeInvalidValue;
 		}
-		LOG_DBG("New temperature measurement %d.%d *C", sTemperature.val1, sTemperature.val2);
+		LOG_DBG("New temperature measurement %d.%0d C", sTemperature.val1, sTemperature.val2);
 
 		status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
 			kTemperatureSensorEndpointId, newValue);
@@ -100,18 +100,13 @@ void AppTask::UpdateRelativeHumidityClusterState()
 			/* Read value exceeds permitted limits, so assign invalid value code to it. */
 			newValue = kHumidityMeasurementAttributeInvalidValue;
 		}
-		LOG_DBG("New humidity measurement %d.%d %%", sHumidity.val1, sHumidity.val2);
+		LOG_DBG("New humidity measurement %d.%0d %%", sHumidity.val1, sHumidity.val2);
 
 		Protocols::InteractionModel::Status status = Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Set(
 			kHumiditySensorEndpointId, newValue);
 		if (status != Protocols::InteractionModel::Status::Success) {
 			LOG_ERR("Updating relative humidity measurement %x", to_underlying(status));
 		}
-// [00:01:12.126,983] <dbg> app: Updating clusters state using HDC3022 sensor data
-// [00:01:12.127,441] <dbg> app: New temperature measurement 26.626230 *C
-// [00:01:12.127,441] <err> app: Updating temperature measurement 87
-// [00:01:12.127,471] <dbg> app: New humidity measurement 62.439917 %
-// [00:01:12.127,593] <inf> chip: [ZCL]WRITE ERR: ep 2 clus 0x0000_0405 attr 0x0000_0000 not supported
 	} else {
 		LOG_ERR("Getting humidity measurement data from HDC3022 failed with: %d", result);
 	}
@@ -186,7 +181,6 @@ CHIP_ERROR AppTask::StartApp()
 		return CHIP_ERROR_INCORRECT_STATE;
 	}
 	mHumidityMeasurementAttributeMinValue = uval.Value();
-	// mHumidityMeasurementAttributeMinValue = 0;
 
 	status = Clusters::RelativeHumidityMeasurement::Attributes::MaxMeasuredValue::Get(kHumiditySensorEndpointId, uval);
 	if (status != Protocols::InteractionModel::Status::Success || uval.IsNull()) {
@@ -194,7 +188,6 @@ CHIP_ERROR AppTask::StartApp()
 		return CHIP_ERROR_INCORRECT_STATE;
 	}
 	mHumidityMeasurementAttributeMaxValue = uval.Value();
-	// mHumidityMeasurementAttributeMaxValue = 0x2710;
 
 	k_timer_init(
 		&sMeasurementsTimer, [](k_timer *) { Nrf::PostTask([] { MeasurementsTimerHandler(); }); }, nullptr);

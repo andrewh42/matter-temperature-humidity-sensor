@@ -1,14 +1,57 @@
 .. _matter_temperature_sensor_sample:
 
-Matter: Temperature Sensor
-##########################
+Matter: Temperature and Humidity Sensor
+#######################################
 
-How to build
-************
+Hardware
+********
+
+This project is based on the Nordic nRF5340-DK development kit and the TI HDC302x temperature and humidity sensor.
+
+The HDC302x is connected to the nRF5340-DK via I2C using the following pin configuration:
++----------------+---------------------+
+| HDC302x Signal | nRF5340-DK Pin      |
++================+=====================+
+| VCC            | VDD (header P1)     |
++----------------+---------------------+
+| GND            | GND (header P1)     |
++----------------+---------------------+
+| SDA            | P1.02 (header P4)   |
++----------------+---------------------+
+| SCL            | P1.03 (header P4)   |
++----------------+---------------------+
+
+The Adafruit HDC302x breakout board is a convenient option for connecting the sensor to the nRF5340-DK.
+
+
+How to build the software
+*************************
 
 1. Add a build configuration, selecting the generate-only checkbox to avoid sequencing problems that can occur when not creating using the generate-only approach.
 2. Build from using the nRF Connect build action.
 3. Flash nRF5340-DK using the nRF Connect flash action.
+
+
+To modify the matter configuration:
+
+1. Open an nrF terminal from VS Code.
+2. Run west zap-gui
+3. Make changes as appropriate, save (from zap menu), quit.
+4. cd src/default_zap; west zap-generate
+5. west zap-sync
+6. Re-build (incremental build is fine: pristine not necessary).
+
+
+How to add to Home
+******************
+
+1. Connect ethernet adapter to iPad and trust.
+2. Disconnect iPad from Wi-Fi.
+3. Connect the DK's VCOM1.
+4. Open QR code by command-clicking on the connectedhome URL logged in the debug console (VCOM1)
+5. Open the Home app on the iPad and choose Add Accessory from the "+" menu.
+6. Scan QR code from step (4)
+7. If adding the accessory fails, reboot the iPad. This worked last time!
 
 
 .. contents::
