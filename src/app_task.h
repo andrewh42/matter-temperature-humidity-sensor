@@ -22,32 +22,23 @@ public:
 
 	CHIP_ERROR StartApp();
 
-	/* Defined by cluster temperature measured value = 100 x temperature in degC with resolution of
-	 * 0.01 degC. */
-	void UpdateTemperatureMeasurement()
-	{
-		/* Linear temperature increase that is wrapped around to min value after reaching the max value. */
-		if (mCurrentTemperature < mTemperatureSensorMaxValue) {
-			mCurrentTemperature += kTemperatureMeasurementStep;
-		} else {
-			mCurrentTemperature = mTemperatureSensorMinValue;
-		}
-	}
-
-	int16_t GetCurrentTemperature() const { return mCurrentTemperature; }
+	void UpdateClustersState();
 
 private:
 	CHIP_ERROR Init();
-	k_timer mTimer;
+	k_timer sMeasurementsTimer;
 
-	static constexpr uint16_t kTemperatureMeasurementIntervalMs = 10000; /* 10 seconds */
-	static constexpr uint16_t kTemperatureMeasurementStep = 100; /* 1 degree Celsius */
+	static constexpr uint16_t kMeasurementsIntervalMs = 10000; /* 10 seconds */
 
-	static void UpdateTemperatureTimeoutCallback(k_timer *timer);
+	int16_t mTemperatureMeasurementAttributeMinValue = 0;
+	int16_t mTemperatureMeasurementAttributeMaxValue = 0;
+	uint16_t mHumidityMeasurementAttributeMinValue = 0;
+	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
+
+	void UpdateTemperatureClusterState();
+	void UpdateRelativeHumidityClusterState();
+
+	static void MeasurementsTimerHandler();
 
 	static void ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChanged);
-
-	int16_t mTemperatureSensorMaxValue = 0;
-	int16_t mTemperatureSensorMinValue = 0;
-	int16_t mCurrentTemperature = 0;
 };

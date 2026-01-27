@@ -3,6 +3,14 @@
 Matter: Temperature Sensor
 ##########################
 
+How to build
+************
+
+1. Add a build configuration, selecting the generate-only checkbox to avoid sequencing problems that can occur when not creating using the generate-only approach.
+2. Build from using the nRF Connect build action.
+3. Flash nRF5340-DK using the nRF Connect flash action.
+
+
 .. contents::
    :local:
    :depth: 2

@@ -1,0 +1,7 @@
+
+&i2c1 {
+    hdc302x@44 {
+        compatible = "ti,hdc302x";
+        reg = <0x44>;
+    };
+};

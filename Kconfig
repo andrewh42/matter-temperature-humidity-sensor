@@ -33,3 +33,9 @@ source "$(ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR)/config/nrfconnect/chip-module/Kconf
 source "$(ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR)/config/nrfconnect/chip-module/Kconfig.defaults"
 source "$(ZEPHYR_NRF_MODULE_DIR)/samples/matter/common/src/Kconfig"
 source "Kconfig.zephyr"
+
+osource "drivers/sensor/ti_hdc302x/Kconfig"
+
+# menu "Local drivers"
+# rsource "drivers/sensor/ti_hdc302x/Kconfig"
+# endmenu

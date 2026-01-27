@@ -1,0 +1,6 @@
+name: ti_hdc302x
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .
