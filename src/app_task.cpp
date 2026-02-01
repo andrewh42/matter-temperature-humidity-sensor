@@ -92,7 +92,6 @@ void AppTask::MeasurementsTimerHandler()
 void AppTask::UpdateTemperatureClusterState()
 {
 	struct sensor_value sTemperature;
-	Protocols::InteractionModel::Status status;
 	int result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
 	if (result == 0) {
 		/* Defined by cluster temperature measured value = 100 x temperature in degC with resolution of
@@ -107,7 +106,7 @@ void AppTask::UpdateTemperatureClusterState()
 		}
 		LOG_DBG("New HDC302x temperature measurement %d.%0d C", sTemperature.val1, sTemperature.val2);
 
-		status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
+		Protocols::InteractionModel::Status status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
 			kTemperatureSensorEndpointId, newValue);
 		if (status != Protocols::InteractionModel::Status::Success) {
 			LOG_ERR("Updating temperature measurement %x", to_underlying(status));
