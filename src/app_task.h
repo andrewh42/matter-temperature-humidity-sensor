@@ -42,4 +42,6 @@ private:
 	static void MeasurementsTimerHandler();
 
 	static void ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChanged);
+
+	static void LEDStateHandler();
 };

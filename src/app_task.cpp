@@ -52,6 +52,38 @@ void AppTask::ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChan
 #endif
 }
 
+void AppTask::LEDStateHandler()
+{
+	/* Update the status LED.
+	 *
+	 * If IPv6 network and service provisioned, the LED is off.
+	 *
+	 * If the system has BLE connection(s) uptill the stage above, THEN blink the LED at an even
+	 * rate of 100ms.
+	 *
+	 * Otherwise, blink the LED for a very short time. */
+	Nrf::LEDWidget &statusLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED1);
+
+	switch (Nrf::GetBoard().GetDeviceState()) {
+	case Nrf::DeviceState::DeviceDisconnected:
+	case Nrf::DeviceState::DeviceAdvertisingBLE:
+		statusLED.Blink(Nrf::LedConsts::StatusLed::Disconnected::kOn_ms,
+				      Nrf::LedConsts::StatusLed::Disconnected::kOff_ms);
+
+		break;
+	case Nrf::DeviceState::DeviceConnectedBLE:
+		statusLED.Blink(Nrf::LedConsts::StatusLed::BleConnected::kOn_ms,
+				      Nrf::LedConsts::StatusLed::BleConnected::kOff_ms);
+		break;
+	case Nrf::DeviceState::DeviceProvisioned:
+		statusLED.Set(false);
+		break;
+	default:
+		LOG_ERR("LEDStateHandler: invalid device state");
+		break;
+	}
+}
+
 void AppTask::MeasurementsTimerHandler()
 {
 	Instance().UpdateClustersState();
@@ -129,7 +161,7 @@ CHIP_ERROR AppTask::Init()
 	/* Initialize Matter stack */
 	ReturnErrorOnFailure(Nrf::Matter::PrepareServer());
 
-	if (!Nrf::GetBoard().Init(ButtonEventHandler)) {
+	if (!Nrf::GetBoard().Init(ButtonEventHandler, LEDStateHandler)) {
 		LOG_ERR("User interface initialization failed.");
 		return CHIP_ERROR_INCORRECT_STATE;
 	}
