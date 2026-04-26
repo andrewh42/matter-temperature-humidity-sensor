@@ -28,7 +28,7 @@ private:
 	CHIP_ERROR Init();
 	k_timer sMeasurementsTimer;
 
-	static constexpr uint16_t kMeasurementsIntervalMs = 60'000;
+	static constexpr uint16_t kMeasurementsIntervalMs = 30'000;
 
 	CHIP_ERROR ConfigureMeasurementValidityRanges();
 	int16_t mTemperatureMeasurementAttributeMinValue = 0;

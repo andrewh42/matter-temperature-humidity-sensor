@@ -145,13 +145,19 @@ void AppTask::UpdateRelativeHumidityClusterState()
 
 void AppTask::UpdateClustersState()
 {
+	Nrf::LEDWidget &clusterUpdateLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED3);
+	clusterUpdateLED.Set(true);
 	const int result = sensor_sample_fetch(sHdc302xSensorDev);
 
 	if (result == 0) {
 		UpdateTemperatureClusterState();
 		UpdateRelativeHumidityClusterState();
+		clusterUpdateLED.Set(false);
 	} else {
+		Nrf::LEDWidget &sampleFailedLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4);
+		sampleFailedLED.Set(true);
 		LOG_ERR("Fetching data from HDC302x sensor failed with: %d", result);
+		sampleFailedLED.Set(false);
 	}
 }
 

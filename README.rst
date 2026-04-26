@@ -62,6 +62,18 @@ This sample demonstrates how to use the :ref:`Matter <ug_matter>` application la
 This device works as a Matter accessory device, meaning it can be paired and controlled remotely over a Matter network built on top of a low-power 802.15.4 Thread network.
 You can use this sample as a reference for creating your own application.
 
+
+Debugging
+*********
+
+The nRF5340-DK VCOM1 console can be used to run various CLI commands.
+
+Read the temperature:
+
+sensor get hdc302x@44 ambient_temp
+
+
+
 Requirements
 ************
 
