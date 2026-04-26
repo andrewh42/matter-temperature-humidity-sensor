@@ -1,1 +1,0 @@
-add_subdirectory_ifdef(CONFIG_TI_HDC302X ti_hdc302x)

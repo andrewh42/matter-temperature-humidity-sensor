@@ -27,9 +27,32 @@ The Adafruit HDC302x breakout board is a convenient option for connecting the se
 How to build the software
 *************************
 
-1. Add a build configuration, selecting the generate-only checkbox to avoid sequencing problems that can occur when not creating using the generate-only approach.
-2. Build from using the nRF Connect build action.
-3. Flash nRF5340-DK using the nRF Connect flash action.
+Open this repo in Visual Studio Code and follow these steps:
+
+1. Select the nRF Connect view using the sidebar on the left hand side.
+
+2. Start a terminal configured for the nRF Connect SDK by clicking on `Open terminal` under the view's Welcome section.
+
+3. Create a build configuration and build the temperature sensor software.
+
+    For the Nordic nRF5340 DK:
+    ```sh
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_DTC_OVERLAY_FILE="app.overlay"
+    ```
+
+    For the Seeed XIAO nRF54L15:
+    ```sh
+    west build -p -d build-xiao -b xiao_nrf54l15/nrf54l15/cpuapp -- \
+      -DCONFIG_CHIP_DFU_OVER_BT_SMP=y -DFILE_SUFFIX=internal \
+      -DEXTRA_DTC_OVERLAY_FILE="app.overlay"
+    ```
+
+4. Flash the software using the nRF Connect flash action.
+
+    For the Nordic nRF5340 DK:
+    ```sh
+    west flash -d build-nrf5340dk --no-rebuild
+    ```
 
 
 To modify the matter configuration:

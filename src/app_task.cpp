@@ -15,7 +15,7 @@
 #include <app-common/zap-generated/attributes/Accessors.h>
 
 #include <zephyr/drivers/sensor.h>
-#include "../drivers/sensor/ti_hdc302x/ti_hdc302x.h"
+#include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
