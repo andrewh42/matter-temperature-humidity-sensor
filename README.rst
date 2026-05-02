@@ -264,6 +264,19 @@ See :ref:`app_build_file_suffixes` and :ref:`cmake_options` for more information
 Testing
 =======
 
+## Testing
+
+### Unit tests
+
+Unit tests run on the host and do not require any hardware. They use [Catch2](https://github.com/catchorg/Catch2) and are built with CMake.
+
+```sh
+cmake -S tests -B build-tests
+cmake --build build-tests
+ctest --test-dir build-tests
+```
+
+
 After building the sample and programming it to your development kit, complete the following steps to test its basic features.
 
 .. note::

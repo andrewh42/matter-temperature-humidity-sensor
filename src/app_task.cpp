@@ -170,7 +170,22 @@ void AppTask::UpdateMeasurements()
 		return;
 	}
 
-	auto [temperatureHundredths, humidityHundredths] = sensorResult.value();
+	auto [rawTemperatureHundredths, rawHumidityHundredths] = sensorResult.value();
+
+	int16_t temperatureHundredths = rawTemperatureHundredths;
+	if (rawTemperatureHundredths != kTemperatureMeasurementAttributeInvalidValue) {
+		temperatureHundredths = static_cast<int16_t>(mTemperatureEma.update(rawTemperatureHundredths));
+		LOG_DBG("Temperature: %d.%02d C (raw)", rawTemperatureHundredths / 100, rawTemperatureHundredths % 100);
+		LOG_DBG("Temperature: %d.%02d C (smoothed)", temperatureHundredths / 100, temperatureHundredths % 100);
+	}
+
+	uint16_t humidityHundredths = rawHumidityHundredths;
+	if (rawHumidityHundredths != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue)) {
+		humidityHundredths = static_cast<uint16_t>(mHumidityEma.update(rawHumidityHundredths));
+		LOG_DBG("Humidity: %d.%02d%% (raw)", rawHumidityHundredths / 100, rawHumidityHundredths % 100);
+		LOG_DBG("Humidity: %d.%02d%% (smoothed)", humidityHundredths / 100, humidityHundredths % 100);
+	}
+
 	UpdateTemperatureClusterState(temperatureHundredths);
 	UpdateRelativeHumidityClusterState(humidityHundredths);
 	clusterUpdateLED.Set(false);

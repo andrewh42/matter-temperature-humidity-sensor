@@ -7,6 +7,7 @@
 #pragma once
 
 #include "board/board.h"
+#include "ema.h"
 
 #include <platform/CHIPDeviceLayer.h>
 #include <tuple>
@@ -37,6 +38,9 @@ private:
 	int16_t mTemperatureMeasurementAttributeMaxValue = 0;
 	uint16_t mHumidityMeasurementAttributeMinValue = 0;
 	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
+
+	Ema mTemperatureEma{ 24 }; // alpha = 24/32 = 0.75
+	Ema mHumidityEma{ 24 };
 
 	tl::expected<std::tuple<int16_t, uint16_t>, int> ReadSensor();
 	void UpdateTemperatureClusterState(int16_t temperatureHundredths);

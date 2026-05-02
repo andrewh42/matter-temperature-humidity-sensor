@@ -1,7 +1,5 @@
 /*
- * Copyright (c) 2025 Nordic Semiconductor ASA
- *
- * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ * SPDX-License-Identifier: LicenseRef-Apache-2.0
  */
 
 #pragma once
