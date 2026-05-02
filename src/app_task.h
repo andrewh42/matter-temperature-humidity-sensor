@@ -36,8 +36,8 @@ private:
 	uint16_t mHumidityMeasurementAttributeMinValue = 0;
 	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
 
-	void UpdateTemperatureClusterState();
-	void UpdateRelativeHumidityClusterState();
+	int16_t UpdateTemperatureClusterState();
+	uint16_t UpdateRelativeHumidityClusterState();
 
 	static void MeasurementsTimerHandler();
 

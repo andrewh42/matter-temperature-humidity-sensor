@@ -18,6 +18,10 @@
 #include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/logging/log.h>
 
+#ifdef CONFIG_DISPLAY
+#include "display_manager.h"
+#endif
+
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
 using namespace ::chip;
@@ -89,7 +93,7 @@ void AppTask::MeasurementsTimerHandler()
 	Instance().UpdateClustersState();
 }
 
-void AppTask::UpdateTemperatureClusterState()
+int16_t AppTask::UpdateTemperatureClusterState()
 {
 	struct sensor_value sTemperature;
 	int result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
@@ -111,12 +115,14 @@ void AppTask::UpdateTemperatureClusterState()
 		if (status != Protocols::InteractionModel::Status::Success) {
 			LOG_ERR("Updating temperature measurement %x", to_underlying(status));
 		}
+		return newValue;
 	} else {
 		LOG_ERR("Getting temperature measurement data from HDC302x failed with: %d", result);
+		return kTemperatureMeasurementAttributeInvalidValue;
 	}
 }
 
-void AppTask::UpdateRelativeHumidityClusterState()
+uint16_t AppTask::UpdateRelativeHumidityClusterState()
 {
 	struct sensor_value sHumidity;
 	int result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, &sHumidity);
@@ -138,8 +144,10 @@ void AppTask::UpdateRelativeHumidityClusterState()
 		if (status != Protocols::InteractionModel::Status::Success) {
 			LOG_ERR("Updating relative humidity measurement %x", to_underlying(status));
 		}
+		return newValue;
 	} else {
 		LOG_ERR("Getting humidity measurement data from HDC302x failed with: %d", result);
+		return kHumidityMeasurementAttributeInvalidValue;
 	}
 }
 
@@ -150,9 +158,12 @@ void AppTask::UpdateClustersState()
 	const int result = sensor_sample_fetch(sHdc302xSensorDev);
 
 	if (result == 0) {
-		UpdateTemperatureClusterState();
-		UpdateRelativeHumidityClusterState();
+		int16_t temperature = UpdateTemperatureClusterState();
+		uint16_t humidity = UpdateRelativeHumidityClusterState();
 		clusterUpdateLED.Set(false);
+#ifdef CONFIG_DISPLAY
+		DisplayManager::Instance().UpdateMeasurements(temperature, humidity);
+#endif
 	} else {
 		Nrf::LEDWidget &sampleFailedLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4);
 		sampleFailedLED.Set(true);
@@ -185,6 +196,10 @@ CHIP_ERROR AppTask::Init()
 
 	const struct sensor_value integration_time = {.val1 = (int32_t)HDC302X_SENSOR_MEAS_INTERVAL_0_5, .val2 = 0};
 	sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL, (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME, &integration_time); // 0.5 Hz
+
+#ifdef CONFIG_DISPLAY
+	ReturnErrorOnFailure(DisplayManager::Instance().Init());
+#endif
 
 	return Nrf::Matter::StartServer();
 }

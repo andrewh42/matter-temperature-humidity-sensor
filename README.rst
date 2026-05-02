@@ -24,6 +24,35 @@ The HDC302x is connected to the nRF5340-DK via I2C using the following pin confi
 The Adafruit HDC302x breakout board is a convenient option for connecting the sensor to the nRF5340-DK.
 
 
+Optional e-paper display
+************************
+
+The sample also supports an optional e-paper display (https://www.seeedstudio.com/ePaper-Breakout-Board-p-5804.html) connected to the nRF5340-DK via SPI
+using the following pin configuration:
+
++----------------+----------------------+--------------+
+| E-paper Signal  | nRF5340-DK Pin      | Ribbon cable |
++=================+=====================+==============+
+| VCC             | VDD (header P1)     | Red          |
++-----------------+---------------------+--------------+
+| GND             | GND (header P1)     | Brown        |
++-----------------+---------------------+--------------+
+| BUSY            | P1.09 (header P4)   | Green        |
++-----------------+---------------------+--------------+
+| RST             | P1.10 (header P4)   | Grey         |
++-----------------+---------------------+--------------+
+| DC              | P1.11 (header P4)   | Blue         |
++-----------------+---------------------+--------------+
+| CS              | P1.12 (header P4)   | Purple       |
++-----------------+---------------------+--------------+
+| MOSI            | P1.13 (header P4)   | Orange       |
++-----------------+---------------------+--------------+
+| SCK             | P1.15 (header P4)   | Yellow       |
++-----------------+---------------------+--------------+
+
+Include the epaper.conf configuration file in the build to enable support for this display.
+
+
 How to build the software
 *************************
 
@@ -35,16 +64,16 @@ Open this repo in Visual Studio Code and follow these steps:
 
 3. Create a build configuration and build the temperature sensor software.
 
-    For the Nordic nRF5340 DK:
+    For the Nordic nRF5340 DK (with e-paper display enabled):
     ```sh
-    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_DTC_OVERLAY_FILE="app.overlay"
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app.overlay;epaper.overlay"
     ```
 
     For the Seeed XIAO nRF54L15:
     ```sh
     west build -p -d build-xiao -b xiao_nrf54l15/nrf54l15/cpuapp -- \
       -DCONFIG_CHIP_DFU_OVER_BT_SMP=y -DFILE_SUFFIX=internal \
-      -DEXTRA_DTC_OVERLAY_FILE="app.overlay"
+      -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app.overlay;epaper.overlay"
     ```
 
 4. Flash the software using the nRF Connect flash action.

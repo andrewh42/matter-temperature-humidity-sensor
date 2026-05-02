@@ -34,5 +34,7 @@ target_sources(app PRIVATE
   src/main.cpp
 )
 
+target_sources_ifdef(CONFIG_DISPLAY app PRIVATE src/display_manager.cpp)
+
 ncs_configure_data_model()
 # NORDIC SDK APP END
