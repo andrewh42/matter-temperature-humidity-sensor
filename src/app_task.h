@@ -9,6 +9,8 @@
 #include "board/board.h"
 
 #include <platform/CHIPDeviceLayer.h>
+#include <tuple>
+#include <tl/expected.hpp>
 
 struct Identify;
 
@@ -22,7 +24,7 @@ public:
 
 	CHIP_ERROR StartApp();
 
-	void UpdateClustersState();
+	void UpdateMeasurements();
 
 private:
 	CHIP_ERROR Init();
@@ -36,8 +38,9 @@ private:
 	uint16_t mHumidityMeasurementAttributeMinValue = 0;
 	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
 
-	int16_t UpdateTemperatureClusterState();
-	uint16_t UpdateRelativeHumidityClusterState();
+	tl::expected<std::tuple<int16_t, uint16_t>, int> ReadSensor();
+	void UpdateTemperatureClusterState(int16_t temperatureHundredths);
+	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 
 	static void MeasurementsTimerHandler();
 

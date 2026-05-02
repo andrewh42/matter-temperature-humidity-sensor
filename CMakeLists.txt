@@ -26,6 +26,7 @@ ncs_get_zap_parent_dir(ZAP_PARENT_DIR)
 
 target_include_directories(app PRIVATE
   src
+  third_party
   ${ZAP_PARENT_DIR}
 )
 

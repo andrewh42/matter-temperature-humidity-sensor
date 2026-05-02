@@ -90,86 +90,94 @@ void AppTask::LEDStateHandler()
 
 void AppTask::MeasurementsTimerHandler()
 {
-	Instance().UpdateClustersState();
+	Instance().UpdateMeasurements();
 }
 
-int16_t AppTask::UpdateTemperatureClusterState()
+void AppTask::UpdateTemperatureClusterState(int16_t newValue)
 {
-	struct sensor_value sTemperature;
-	int result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
-	if (result == 0) {
-		/* Defined by cluster temperature measured value = 100 x temperature in degC with resolution of
-		 * 0.01 degC. val1 is an integer part of the value and val2 is fractional part in one-millionth
-		 * parts. To achieve resolution of 0.01 degC val2 needs to be divided by 10000. */
-		int16_t newValue = static_cast<int16_t>(sTemperature.val1 * 100 + sTemperature.val2 / 10000);
+	if (newValue > mTemperatureMeasurementAttributeMaxValue ||
+		newValue < mTemperatureMeasurementAttributeMinValue) {
+		/* Read value exceeds permitted limits, so assign invalid value code to it. */
+		newValue = kTemperatureMeasurementAttributeInvalidValue;
+	}
 
-		if (newValue > mTemperatureMeasurementAttributeMaxValue ||
-		    newValue < mTemperatureMeasurementAttributeMinValue) {
-			/* Read value exceeds permitted limits, so assign invalid value code to it. */
-			newValue = kTemperatureMeasurementAttributeInvalidValue;
-		}
-		LOG_DBG("New HDC302x temperature measurement %d.%0d C", sTemperature.val1, sTemperature.val2);
-
-		Protocols::InteractionModel::Status status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
-			kTemperatureSensorEndpointId, newValue);
-		if (status != Protocols::InteractionModel::Status::Success) {
-			LOG_ERR("Updating temperature measurement %x", to_underlying(status));
-		}
-		return newValue;
-	} else {
-		LOG_ERR("Getting temperature measurement data from HDC302x failed with: %d", result);
-		return kTemperatureMeasurementAttributeInvalidValue;
+	Protocols::InteractionModel::Status status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
+		kTemperatureSensorEndpointId, newValue);
+	if (status != Protocols::InteractionModel::Status::Success) {
+		LOG_ERR("Updating temperature measurement %x", to_underlying(status));
 	}
 }
 
-uint16_t AppTask::UpdateRelativeHumidityClusterState()
+void AppTask::UpdateRelativeHumidityClusterState(uint16_t newValue)
 {
-	struct sensor_value sHumidity;
-	int result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, &sHumidity);
-	if (result == 0) {
-		/* Defined by cluster humidity measured value = 100 x humidity in %RH with resolution of 0.01 %.
-		 * val1 is an integer part of the value and val2 is fractional part in one-millionth parts.
-		 * To achieve resolution of 0.01 % val2 needs to be divided by 10000. */
-		uint16_t newValue = static_cast<int16_t>(sHumidity.val1 * 100 + sHumidity.val2 / 10000);
+	if (newValue > mHumidityMeasurementAttributeMaxValue ||
+		newValue < mHumidityMeasurementAttributeMinValue) {
+		/* Read value exceeds permitted limits, so assign invalid value code to it. */
+		newValue = kHumidityMeasurementAttributeInvalidValue;
+	}
 
-		if (newValue > mHumidityMeasurementAttributeMaxValue ||
-		    newValue < mHumidityMeasurementAttributeMinValue) {
-			/* Read value exceeds permitted limits, so assign invalid value code to it. */
-			newValue = kHumidityMeasurementAttributeInvalidValue;
-		}
-		LOG_DBG("New HDC302x relative humidity measurement %d.%0d %%", sHumidity.val1, sHumidity.val2);
-
-		Protocols::InteractionModel::Status status = Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Set(
-			kHumiditySensorEndpointId, newValue);
-		if (status != Protocols::InteractionModel::Status::Success) {
-			LOG_ERR("Updating relative humidity measurement %x", to_underlying(status));
-		}
-		return newValue;
-	} else {
-		LOG_ERR("Getting humidity measurement data from HDC302x failed with: %d", result);
-		return kHumidityMeasurementAttributeInvalidValue;
+	Protocols::InteractionModel::Status status = Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Set(
+		kHumiditySensorEndpointId, newValue);
+	if (status != Protocols::InteractionModel::Status::Success) {
+		LOG_ERR("Updating relative humidity measurement %x", to_underlying(status));
 	}
 }
 
-void AppTask::UpdateClustersState()
+tl::expected<std::tuple<int16_t, uint16_t>, int> AppTask::ReadSensor()
 {
-	Nrf::LEDWidget &clusterUpdateLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED3);
-	clusterUpdateLED.Set(true);
 	const int result = sensor_sample_fetch(sHdc302xSensorDev);
-
-	if (result == 0) {
-		int16_t temperature = UpdateTemperatureClusterState();
-		uint16_t humidity = UpdateRelativeHumidityClusterState();
-		clusterUpdateLED.Set(false);
-#ifdef CONFIG_DISPLAY
-		DisplayManager::Instance().UpdateMeasurements(temperature, humidity);
-#endif
-	} else {
+	if (result != 0) {
 		Nrf::LEDWidget &sampleFailedLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4);
 		sampleFailedLED.Set(true);
 		LOG_ERR("Fetching data from HDC302x sensor failed with: %d", result);
 		sampleFailedLED.Set(false);
+		return tl::unexpected(result);
 	}
+
+	struct sensor_value sTemperature;
+	int16_t temperatureHundredths;
+	const int temp_result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
+	if (temp_result == 0) {
+		LOG_DBG("New HDC302x temperature measurement %d.%0d C", sTemperature.val1, sTemperature.val2);
+		temperatureHundredths = static_cast<int16_t>(sTemperature.val1 * 100 + sTemperature.val2 / 10000);
+	} else {
+		LOG_ERR("Getting temperature measurement data from HDC302x failed with: %d", temp_result);
+		temperatureHundredths = kTemperatureMeasurementAttributeInvalidValue;
+	}
+
+	struct sensor_value sHumidity;
+	uint16_t humidityHundredths;
+	const int humidity_result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, &sHumidity);
+	if (humidity_result == 0) {
+		LOG_DBG("New HDC302x relative humidity measurement %d.%0d%%", sHumidity.val1, sHumidity.val2);
+		humidityHundredths = static_cast<int16_t>(sHumidity.val1 * 100 + sHumidity.val2 / 10000);
+	} else {
+		LOG_ERR("Getting humidity measurement data from HDC302x failed with: %d", humidity_result);
+		humidityHundredths = kHumidityMeasurementAttributeInvalidValue;
+	}
+
+	return tl::expected<std::tuple<int16_t, uint16_t>, int>({temperatureHundredths, humidityHundredths});
+}
+
+void AppTask::UpdateMeasurements()
+{
+	Nrf::LEDWidget &clusterUpdateLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED3);
+	clusterUpdateLED.Set(true);
+	auto sensorResult = ReadSensor();
+	if (!sensorResult) {
+		LOG_ERR("Failed to read sensor data: %d", sensorResult.error());
+		clusterUpdateLED.Set(false);
+		return;
+	}
+
+	auto [temperatureHundredths, humidityHundredths] = sensorResult.value();
+	UpdateTemperatureClusterState(temperatureHundredths);
+	UpdateRelativeHumidityClusterState(humidityHundredths);
+	clusterUpdateLED.Set(false);
+
+#ifdef CONFIG_DISPLAY
+	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
+#endif
 }
 
 CHIP_ERROR AppTask::Init()
