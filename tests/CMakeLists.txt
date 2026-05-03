@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20.0)
-project(ema_tests CXX)
+project(moving_average_tests CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,13 +16,13 @@ include(Catch)
 
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/../src)
 
-add_executable(ema_tests
-    ema/test_ema.cpp
+add_executable(moving_average_tests
+    moving_average/test_moving_average.cpp
 )
 
-target_include_directories(ema_tests PRIVATE
-    ${SRC_DIR}   # ema.h
+target_include_directories(moving_average_tests PRIVATE
+    ${SRC_DIR}   # moving_average.h
 )
 
-target_link_libraries(ema_tests PRIVATE Catch2::Catch2WithMain)
-catch_discover_tests(ema_tests)
+target_link_libraries(moving_average_tests PRIVATE Catch2::Catch2WithMain)
+catch_discover_tests(moving_average_tests)
