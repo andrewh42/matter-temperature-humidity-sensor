@@ -13,6 +13,11 @@
 #include <tuple>
 #include <tl/expected.hpp>
 
+#ifdef CONFIG_DISPLAY
+#include <openthread/link.h>
+#include <openthread/thread.h>
+#endif
+
 struct Identify;
 
 class AppTask {
@@ -47,6 +52,10 @@ private:
 	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 
 	static void MeasurementsTimerHandler();
+
+#ifdef CONFIG_DISPLAY
+	std::tuple<bool, uint8_t> GetThreadConnectivity();
+#endif
 
 	static void ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChanged);
 

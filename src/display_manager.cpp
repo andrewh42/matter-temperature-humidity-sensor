@@ -37,8 +37,8 @@ CHIP_ERROR DisplayManager::Init()
 		return CHIP_ERROR_INTERNAL;
 	}
 
-	cfb_framebuffer_clear(mDev, true);
 	cfb_framebuffer_invert(mDev);
+	cfb_framebuffer_clear(mDev, true);
 	cfb_framebuffer_set_font(mDev, 2);
 	display_blanking_off(mDev);
 	mInitialized = true;
@@ -47,46 +47,96 @@ CHIP_ERROR DisplayManager::Init()
 
 void DisplayManager::UpdateMeasurements(int16_t temperatureHundredths, uint16_t humidityHundredths)
 {
+	mCurrentTemperature = temperatureHundredths;
+	mCurrentHumidity = humidityHundredths;
+}
+
+void DisplayManager::UpdateSignalStrength(bool connected, uint8_t lqi)
+{
+	mCurrentConnected = connected;
+	mCurrentLqi = lqi;
+}
+
+void DisplayManager::RefreshDisplay()
+{
 	if (!mInitialized) {
 		return;
 	}
-	bool neg = (temperatureHundredths < 0);
-	int16_t tAbs = neg ? -temperatureHundredths : temperatureHundredths;
-	int16_t tempTenths = (tAbs + 5) / 10;
-	uint16_t humTenths = (humidityHundredths + 25) / 50 * 5; // Round to nearest 0.5% (matching the resolution of the sensor)
-	if (tempTenths == mLastTemperature && humTenths == mLastHumidity) {
+	if (mCurrentTemperature == mLastTemperature &&
+	    mCurrentHumidity    == mLastHumidity    &&
+	    mCurrentConnected   == mLastConnected   &&
+	    mCurrentLqi         == mLastLqi) {
 		return;
 	}
-	mLastTemperature = tempTenths;
-	mLastHumidity = humTenths;
 
 	mPartialUpdateCount++;
 	bool fullUpdate = (mPartialUpdateCount >= kFullUpdateInterval);
 	if (fullUpdate) {
 		mPartialUpdateCount = 0;
-	}
-
-	char buf[32];
-
-	if (fullUpdate) {
 		display_blanking_on(mDev);
 	}
 
 	cfb_framebuffer_clear(mDev, false);
-
-	snprintf(buf, sizeof(buf), "T:%s%d.%01d C", neg ? "-" : " ", tempTenths / 10, tempTenths % 10);
-	cfb_print(mDev, buf, 0, 20);
-
-	snprintf(buf, sizeof(buf), "H: %d.%01d%%", humTenths / 10, humTenths % 10);
-	cfb_print(mDev, buf, 0, 70);
-
-	snprintf(buf, sizeof(buf), "P: %d/%d", mPartialUpdateCount, kFullUpdateInterval);
-	cfb_print(mDev, buf, 0, 120);
-
+	DrawMeasurements();
+	DrawSignalBars();
 	cfb_framebuffer_finalize(mDev);
 
 	if (fullUpdate) {
 		display_blanking_off(mDev);
+	}
+
+	mLastTemperature = mCurrentTemperature;
+	mLastHumidity    = mCurrentHumidity;
+	mLastConnected   = mCurrentConnected;
+	mLastLqi         = mCurrentLqi;
+}
+
+void DisplayManager::DrawMeasurements()
+{
+	constexpr uint16_t textStartY = 40;
+
+	bool neg = (mCurrentTemperature < 0);
+	int16_t absValue = neg ? -mCurrentTemperature : mCurrentTemperature;
+	int16_t temperatureTenths = (absValue + 5) / 10;
+	uint16_t humidityTenths = (mCurrentHumidity + 10) / 20 * 2; // 0.2% steps
+
+	char buf[32];
+	snprintf(buf, sizeof(buf), "T:%s%d.%01d C", neg ? "-" : " ", temperatureTenths / 10, temperatureTenths % 10);
+	cfb_print(mDev, buf, 0, textStartY);
+
+	snprintf(buf, sizeof(buf), "H: %d.%01d%%", humidityTenths / 10, humidityTenths % 10);
+	cfb_print(mDev, buf, 0, textStartY + 50);
+
+	snprintf(buf, sizeof(buf), "P: %d/%d", mPartialUpdateCount, kFullUpdateInterval);
+	cfb_print(mDev, buf, 0, textStartY + 100);
+}
+
+void DisplayManager::DrawSignalBars()
+{
+	constexpr uint16_t signalBarX = 170;
+	constexpr uint16_t signalBarY = 20;
+	constexpr uint16_t signalBarMinimumHeight = 6;
+
+	if (!mCurrentConnected) {
+		cfb_draw_text(mDev, "-", signalBarX + 10, 7);
+		return;
+	}
+	for (int i = 0; i < 4; i++) {
+		uint16_t x = static_cast<uint16_t>(signalBarX + i * 8);
+		uint16_t height = static_cast<uint16_t>(i * 4 + signalBarMinimumHeight);
+		uint16_t y = static_cast<uint16_t>(signalBarY - height);
+		if (i <= mCurrentLqi) {
+			if (cfb_invert_area(mDev, x, y, 5, height) != 0) {
+				LOG_ERR("Failed to invert area for signal bar %d", i);
+			}
+		} else {
+			struct cfb_position start = {x, y};
+			struct cfb_position end = {static_cast<uint16_t>(x + 4),
+						   static_cast<uint16_t>(y + height - 1)};
+			if (cfb_draw_rect(mDev, &start, &end) != 0) {
+				LOG_ERR("Failed to draw rectangle for signal bar %d", i);
+			}
+		}
 	}
 }
 

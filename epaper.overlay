@@ -18,7 +18,6 @@
 			width = <200>;
 			height = <200>;
 			busy-gpios = <&arduino_header 13 GPIO_ACTIVE_HIGH>; /* D7 (P1.09) */
-			rotation = <90>;
 
 			partial {};
 		};

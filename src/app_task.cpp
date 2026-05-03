@@ -20,6 +20,8 @@
 
 #ifdef CONFIG_DISPLAY
 #include "display_manager.h"
+#include <openthread/link.h>
+#include <openthread/thread.h>
 #endif
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
@@ -92,6 +94,35 @@ void AppTask::MeasurementsTimerHandler()
 {
 	Instance().UpdateMeasurements();
 }
+
+#ifdef CONFIG_DISPLAY
+std::tuple<bool, uint8_t> AppTask::GetThreadConnectivity()
+{
+	bool connected = false;
+	uint8_t lqi = 0;
+	ThreadStackMgr().LockThreadStack();
+	otInstance *ot = ThreadStackMgrImpl().OTInstance();
+	const otDeviceRole role = otThreadGetDeviceRole(ot);
+	connected = (role != OT_DEVICE_ROLE_DISABLED && role != OT_DEVICE_ROLE_DETACHED);
+	if (role == OT_DEVICE_ROLE_CHILD) {
+		int8_t rssi = 0;
+		if (otThreadGetParentAverageRssi(ot, &rssi) == OT_ERROR_NONE) {
+			lqi = otLinkConvertRssToLinkQuality(ot, rssi);
+		}
+	} else if (IS_ENABLED(CONFIG_OPENTHREAD_FTD) &&
+		   (role == OT_DEVICE_ROLE_ROUTER || role == OT_DEVICE_ROLE_LEADER)) {
+		otNeighborInfoIterator iter = OT_NEIGHBOR_INFO_ITERATOR_INIT;
+		otNeighborInfo info;
+		while (otThreadGetNextNeighborInfo(ot, &iter, &info) == OT_ERROR_NONE) {
+			if (info.mLinkQualityIn > lqi) {
+				lqi = info.mLinkQualityIn;
+			}
+		}
+	}
+	ThreadStackMgr().UnlockThreadStack();
+	return {connected, lqi};
+}
+#endif
 
 void AppTask::UpdateTemperatureClusterState(int16_t newValue)
 {
@@ -191,7 +222,12 @@ void AppTask::UpdateMeasurements()
 	clusterUpdateLED.Set(false);
 
 #ifdef CONFIG_DISPLAY
+	auto [connected, lqi] = GetThreadConnectivity();
+	LOG_DBG("Thread connectivity: %s, LQI: %d", connected ? "connected" : "not connected", lqi);
+	DisplayManager::Instance().UpdateSignalStrength(connected, lqi);
+
 	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
+	DisplayManager::Instance().RefreshDisplay();
 #endif
 }
 
