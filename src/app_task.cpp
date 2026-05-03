@@ -192,12 +192,16 @@ tl::expected<std::tuple<int16_t, uint16_t>, int> AppTask::ReadSensor()
 
 void AppTask::UpdateMeasurements()
 {
+#ifndef CONFIG_DISPLAY
 	Nrf::LEDWidget &clusterUpdateLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED3);
 	clusterUpdateLED.Set(true);
+#endif
 	auto sensorResult = ReadSensor();
 	if (!sensorResult) {
 		LOG_ERR("Failed to read sensor data: %d", sensorResult.error());
+#ifndef CONFIG_DISPLAY
 		clusterUpdateLED.Set(false);
+#endif
 		return;
 	}
 
@@ -219,7 +223,6 @@ void AppTask::UpdateMeasurements()
 
 	UpdateTemperatureClusterState(temperatureHundredths);
 	UpdateRelativeHumidityClusterState(humidityHundredths);
-	clusterUpdateLED.Set(false);
 
 #ifdef CONFIG_DISPLAY
 	auto [connected, lqi] = GetThreadConnectivity();
@@ -228,6 +231,8 @@ void AppTask::UpdateMeasurements()
 
 	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
 	DisplayManager::Instance().RefreshDisplay();
+#else
+	clusterUpdateLED.Set(false);
 #endif
 }
 
