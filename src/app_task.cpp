@@ -138,7 +138,7 @@ tl::expected<std::tuple<int16_t, uint16_t>, int> AppTask::ReadSensor()
 	int16_t temperatureHundredths;
 	const int temp_result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
 	if (temp_result == 0) {
-		LOG_DBG("New HDC302x temperature measurement %d.%0d C", sTemperature.val1, sTemperature.val2);
+		LOG_DBG("New HDC302x temperature measurement %d.%06d C", sTemperature.val1, sTemperature.val2);
 		temperatureHundredths = static_cast<int16_t>(sTemperature.val1 * 100 + sTemperature.val2 / 10000);
 	} else {
 		LOG_ERR("Getting temperature measurement data from HDC302x failed with: %d", temp_result);
@@ -149,7 +149,7 @@ tl::expected<std::tuple<int16_t, uint16_t>, int> AppTask::ReadSensor()
 	uint16_t humidityHundredths;
 	const int humidity_result = sensor_channel_get(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, &sHumidity);
 	if (humidity_result == 0) {
-		LOG_DBG("New HDC302x relative humidity measurement %d.%0d%%", sHumidity.val1, sHumidity.val2);
+		LOG_DBG("New HDC302x relative humidity measurement %d.%06d%%", sHumidity.val1, sHumidity.val2);
 		humidityHundredths = static_cast<int16_t>(sHumidity.val1 * 100 + sHumidity.val2 / 10000);
 	} else {
 		LOG_ERR("Getting humidity measurement data from HDC302x failed with: %d", humidity_result);
