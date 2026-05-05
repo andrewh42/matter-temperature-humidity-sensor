@@ -35,7 +35,7 @@ target_sources(app PRIVATE
   src/main.cpp
 )
 
-target_sources_ifdef(CONFIG_DISPLAY app PRIVATE src/display_manager.cpp)
+target_sources_ifdef(CONFIG_DISPLAY app PRIVATE src/display_manager.cpp src/lv_font_inter_extrabold_36.c)
 
 ncs_configure_data_model()
 # NORDIC SDK APP END

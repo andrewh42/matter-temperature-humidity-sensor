@@ -12,6 +12,8 @@
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
+LV_FONT_DECLARE(lv_font_inter_extrabold_36);
+
 CHIP_ERROR DisplayManager::Init()
 {
 	mDev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
@@ -21,23 +23,28 @@ CHIP_ERROR DisplayManager::Init()
 	}
 	LOG_INF("Display device is ready");
 
+	// Overwrite the auto-initialized theme with the correct polarity
+	lv_display_t *disp = lv_display_get_default();
+	lv_theme_t *th = lv_theme_mono_init(disp, true, &lv_font_inter_extrabold_36);
+	lv_display_set_theme(disp, th);
+
 	// LVGL is initialised by LV_Z_AUTO_INIT (SYS_INIT at priority 90) before
 	// app code runs. Widgets are created on the default screen.
 	lv_obj_t *screen = lv_screen_active();
 
 	mLabelTemperature = lv_label_create(screen);
 	lv_obj_set_pos(mLabelTemperature, 0, 40);
-	lv_obj_set_style_text_font(mLabelTemperature, &lv_font_montserrat_20, 0);
+	lv_obj_set_style_text_font(mLabelTemperature, &lv_font_inter_extrabold_36, 0);
 	lv_label_set_text(mLabelTemperature, "T:  -.- C");
 
 	mLabelHumidity = lv_label_create(screen);
 	lv_obj_set_pos(mLabelHumidity, 0, 90);
-	lv_obj_set_style_text_font(mLabelHumidity, &lv_font_montserrat_20, 0);
+	lv_obj_set_style_text_font(mLabelHumidity, &lv_font_inter_extrabold_36, 0);
 	lv_label_set_text(mLabelHumidity, "H:  -.- %");
 
 	mLabelPartial = lv_label_create(screen);
 	lv_obj_set_pos(mLabelPartial, 0, 140);
-	lv_obj_set_style_text_font(mLabelPartial, &lv_font_montserrat_20, 0);
+	lv_obj_set_style_text_font(mLabelPartial, &lv_font_inter_extrabold_36, 0);
 	lv_label_set_text(mLabelPartial, "P: 0/30");
 
 	// Disconnected indicator: "-" in the signal-bar area (hidden until first refresh)
