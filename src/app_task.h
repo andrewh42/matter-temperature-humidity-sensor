@@ -36,6 +36,7 @@ private:
 	CHIP_ERROR Init();
 	k_timer sMeasurementsTimer;
 
+	static constexpr uint32_t kMeasurementsInitialMs = 5'000;
 	static constexpr uint32_t kMeasurementsIntervalMs = 60'000;
 
 	CHIP_ERROR ConfigureMeasurementValidityRanges();

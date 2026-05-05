@@ -311,7 +311,7 @@ CHIP_ERROR AppTask::StartApp()
 
 	k_timer_init(
 		&sMeasurementsTimer, [](k_timer *) { Nrf::PostTask([] { MeasurementsTimerHandler(); }); }, nullptr);
-	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsIntervalMs), K_MSEC(kMeasurementsIntervalMs));
+	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsInitialMs), K_MSEC(kMeasurementsIntervalMs));
 
 	while (true) {
 		Nrf::DispatchNextTask();
