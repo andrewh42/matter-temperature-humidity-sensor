@@ -6,9 +6,7 @@
 
 #include "display_manager.h"
 
-#include <stdio.h>
 #include <system/SystemError.h>
-#include <zephyr/display/cfb.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/logging/log.h>
 
@@ -23,24 +21,48 @@ CHIP_ERROR DisplayManager::Init()
 	}
 	LOG_INF("Display device is ready");
 
-	if (display_set_pixel_format(mDev, PIXEL_FORMAT_MONO10) != 0) {
-		if (display_set_pixel_format(mDev, PIXEL_FORMAT_MONO01) != 0) {
-			LOG_ERR("Failed to set display pixel format");
-			return CHIP_ERROR_INTERNAL;
-		}
-	} else {
-		LOG_INF("Display supports MONO10 pixel format");
+	// LVGL is initialised by LV_Z_AUTO_INIT (SYS_INIT at priority 90) before
+	// app code runs. Widgets are created on the default screen.
+	lv_obj_t *screen = lv_screen_active();
+
+	mLabelTemperature = lv_label_create(screen);
+	lv_obj_set_pos(mLabelTemperature, 0, 40);
+	lv_obj_set_style_text_font(mLabelTemperature, &lv_font_montserrat_20, 0);
+	lv_label_set_text(mLabelTemperature, "T:  -.- C");
+
+	mLabelHumidity = lv_label_create(screen);
+	lv_obj_set_pos(mLabelHumidity, 0, 90);
+	lv_obj_set_style_text_font(mLabelHumidity, &lv_font_montserrat_20, 0);
+	lv_label_set_text(mLabelHumidity, "H:  -.- %");
+
+	mLabelPartial = lv_label_create(screen);
+	lv_obj_set_pos(mLabelPartial, 0, 140);
+	lv_obj_set_style_text_font(mLabelPartial, &lv_font_montserrat_20, 0);
+	lv_label_set_text(mLabelPartial, "P: 0/30");
+
+	// Disconnected indicator: "-" in the signal-bar area (hidden until first refresh)
+	mLabelDisconnected = lv_label_create(screen);
+	lv_obj_set_pos(mLabelDisconnected, 180, 7);
+	lv_label_set_text(mLabelDisconnected, "-");
+	lv_obj_add_flag(mLabelDisconnected, LV_OBJ_FLAG_HIDDEN);
+
+	// Signal bars: bar i at x=170+i*8, height=i*4+6, y=20-height, width=5
+	for (int i = 0; i < 4; i++) {
+		int32_t height = i * 4 + 6;
+		mSignalBars[i] = lv_obj_create(screen);
+		lv_obj_remove_style_all(mSignalBars[i]);
+		lv_obj_set_pos(mSignalBars[i], 170 + i * 8, 20 - height);
+		lv_obj_set_size(mSignalBars[i], 5, height);
+		lv_obj_set_style_radius(mSignalBars[i], 0, 0);
+		lv_obj_set_style_pad_all(mSignalBars[i], 0, 0);
+		// Default: outline style (inactive bar); DrawSignalBars() fills active bars
+		lv_obj_set_style_bg_opa(mSignalBars[i],       LV_OPA_TRANSP,    0);
+		lv_obj_set_style_border_width(mSignalBars[i], 1,                0);
+		lv_obj_set_style_border_color(mSignalBars[i], lv_color_black(), 0);
+		lv_obj_set_style_border_opa(mSignalBars[i],   LV_OPA_COVER,     0);
+		lv_obj_add_flag(mSignalBars[i], LV_OBJ_FLAG_HIDDEN);
 	}
 
-	if (cfb_framebuffer_init(mDev) != 0) {
-		LOG_ERR("CFB framebuffer init failed");
-		return CHIP_ERROR_INTERNAL;
-	}
-
-	cfb_framebuffer_invert(mDev);
-	cfb_framebuffer_clear(mDev, true);
-	cfb_framebuffer_set_font(mDev, 2);
-	display_blanking_off(mDev);
 	mInitialized = true;
 	return CHIP_NO_ERROR;
 }
@@ -48,13 +70,13 @@ CHIP_ERROR DisplayManager::Init()
 void DisplayManager::UpdateMeasurements(int16_t temperatureHundredths, uint16_t humidityHundredths)
 {
 	mCurrentTemperature = temperatureHundredths;
-	mCurrentHumidity = humidityHundredths;
+	mCurrentHumidity    = humidityHundredths;
 }
 
 void DisplayManager::UpdateSignalStrength(bool connected, uint8_t lqi)
 {
 	mCurrentConnected = connected;
-	mCurrentLqi = lqi;
+	mCurrentLqi       = lqi;
 }
 
 void DisplayManager::RefreshDisplay()
@@ -73,15 +95,16 @@ void DisplayManager::RefreshDisplay()
 	bool fullUpdate = (mPartialUpdateCount >= kFullUpdateInterval);
 	if (fullUpdate) {
 		mPartialUpdateCount = 0;
+		// Sets SSD16XX to full-waveform profile and defers display_write().
 		display_blanking_on(mDev);
 	}
 
-	cfb_framebuffer_clear(mDev, false);
 	DrawMeasurements();
 	DrawSignalBars();
-	cfb_framebuffer_finalize(mDev);
+	lv_timer_handler(); // renders dirty widgets → calls display_write() via flush callback
 
 	if (fullUpdate) {
+		// Calls ssd16xx_update_display() to trigger the full-waveform panel refresh.
 		display_blanking_off(mDev);
 	}
 
@@ -93,49 +116,45 @@ void DisplayManager::RefreshDisplay()
 
 void DisplayManager::DrawMeasurements()
 {
-	constexpr uint16_t textStartY = 40;
+	bool     neg               = (mCurrentTemperature < 0);
+	int16_t  absValue          = neg ? -mCurrentTemperature : mCurrentTemperature;
+	int16_t  temperatureTenths = (absValue + 5) / 10;
+	uint16_t humidityTenths    = (mCurrentHumidity + 10) / 20 * 2; // 0.2% steps
 
-	bool neg = (mCurrentTemperature < 0);
-	int16_t absValue = neg ? -mCurrentTemperature : mCurrentTemperature;
-	int16_t temperatureTenths = (absValue + 5) / 10;
-	uint16_t humidityTenths = (mCurrentHumidity + 10) / 20 * 2; // 0.2% steps
+	lv_label_set_text_fmt(mLabelTemperature, "T:%s%d.%01d C",
+	                      neg ? "-" : " ",
+	                      temperatureTenths / 10, temperatureTenths % 10);
 
-	char buf[32];
-	snprintf(buf, sizeof(buf), "T:%s%d.%01d C", neg ? "-" : " ", temperatureTenths / 10, temperatureTenths % 10);
-	cfb_print(mDev, buf, 0, textStartY);
+	lv_label_set_text_fmt(mLabelHumidity, "H: %d.%01d%%",
+	                      humidityTenths / 10, humidityTenths % 10);
 
-	snprintf(buf, sizeof(buf), "H: %d.%01d%%", humidityTenths / 10, humidityTenths % 10);
-	cfb_print(mDev, buf, 0, textStartY + 50);
-
-	snprintf(buf, sizeof(buf), "P: %d/%d", mPartialUpdateCount, kFullUpdateInterval);
-	cfb_print(mDev, buf, 0, textStartY + 100);
+	lv_label_set_text_fmt(mLabelPartial, "P: %d/%d",
+	                      mPartialUpdateCount, kFullUpdateInterval);
 }
 
 void DisplayManager::DrawSignalBars()
 {
-	constexpr uint16_t signalBarX = 170;
-	constexpr uint16_t signalBarY = 20;
-	constexpr uint16_t signalBarMinimumHeight = 6;
-
 	if (!mCurrentConnected) {
-		cfb_draw_text(mDev, "-", signalBarX + 10, 7);
+		lv_obj_remove_flag(mLabelDisconnected, LV_OBJ_FLAG_HIDDEN);
+		for (int i = 0; i < 4; i++) {
+			lv_obj_add_flag(mSignalBars[i], LV_OBJ_FLAG_HIDDEN);
+		}
 		return;
 	}
+
+	lv_obj_add_flag(mLabelDisconnected, LV_OBJ_FLAG_HIDDEN);
+
 	for (int i = 0; i < 4; i++) {
-		uint16_t x = static_cast<uint16_t>(signalBarX + i * 8);
-		uint16_t height = static_cast<uint16_t>(i * 4 + signalBarMinimumHeight);
-		uint16_t y = static_cast<uint16_t>(signalBarY - height);
+		lv_obj_remove_flag(mSignalBars[i], LV_OBJ_FLAG_HIDDEN);
 		if (i <= mCurrentLqi) {
-			if (cfb_invert_area(mDev, x, y, 5, height) != 0) {
-				LOG_ERR("Failed to invert area for signal bar %d", i);
-			}
+			// Filled (active) bar
+			lv_obj_set_style_bg_opa(mSignalBars[i],       LV_OPA_COVER,    0);
+			lv_obj_set_style_bg_color(mSignalBars[i],     lv_color_black(), 0);
+			lv_obj_set_style_border_width(mSignalBars[i], 0,               0);
 		} else {
-			struct cfb_position start = {x, y};
-			struct cfb_position end = {static_cast<uint16_t>(x + 4),
-						   static_cast<uint16_t>(y + height - 1)};
-			if (cfb_draw_rect(mDev, &start, &end) != 0) {
-				LOG_ERR("Failed to draw rectangle for signal bar %d", i);
-			}
+			// Outline (inactive) bar
+			lv_obj_set_style_bg_opa(mSignalBars[i],       LV_OPA_TRANSP,   0);
+			lv_obj_set_style_border_width(mSignalBars[i], 1,               0);
 		}
 	}
 }

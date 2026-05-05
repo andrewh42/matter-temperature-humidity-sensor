@@ -8,6 +8,7 @@
 
 #include <lib/core/CHIPError.h>
 #include <zephyr/device.h>
+#include <lvgl.h>
 
 class DisplayManager {
 public:
@@ -41,6 +42,12 @@ private:
 	uint16_t mLastHumidity    = UINT16_MAX;
 	bool     mLastConnected   = false;
 	uint8_t  mLastLqi         = UINT8_MAX;
+
+	lv_obj_t *mLabelTemperature  = nullptr;
+	lv_obj_t *mLabelHumidity     = nullptr;
+	lv_obj_t *mLabelPartial      = nullptr;
+	lv_obj_t *mLabelDisconnected = nullptr;
+	lv_obj_t *mSignalBars[4]     = {};
 };
 
 #endif /* CONFIG_DISPLAY */
