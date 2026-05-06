@@ -24,14 +24,18 @@ public:
 	void RefreshDisplay();
 
 private:
+	static void SignalDrawCallback(lv_event_t *event);
+
+	lv_obj_t *CreateSensorCard(lv_obj_t *parent, uint32_t iconCodepoint,
+	                            const char *title, const char *unit);
 	void DrawMeasurements();
 	void DrawSignalBars();
 
 	static constexpr uint8_t kFullUpdateInterval = 30;
 
-	const struct device *mDev = nullptr;
-	bool mInitialized = false;
-	uint8_t mPartialUpdateCount = 0;
+	const struct device *mDev        = nullptr;
+	bool                 mInitialized = false;
+	uint8_t              mPartialUpdateCount = 0;
 
 	int16_t  mCurrentTemperature = INT16_MIN;
 	uint16_t mCurrentHumidity    = UINT16_MAX;
@@ -43,11 +47,9 @@ private:
 	bool     mLastConnected   = false;
 	uint8_t  mLastLqi         = UINT8_MAX;
 
-	lv_obj_t *mLabelTemperature  = nullptr;
-	lv_obj_t *mLabelHumidity     = nullptr;
-	lv_obj_t *mLabelPartial      = nullptr;
-	lv_obj_t *mLabelDisconnected = nullptr;
-	lv_obj_t *mSignalBars[4]     = {};
+	lv_obj_t *mValueTemperature = nullptr;
+	lv_obj_t *mValueHumidity    = nullptr;
+	lv_obj_t *mSignalWidget     = nullptr;
 };
 
 #endif /* CONFIG_DISPLAY */
