@@ -92,7 +92,7 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 	lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 	lv_obj_set_style_pad_all(card, 0, 0);
-	lv_obj_set_style_pad_row(card, 0, 0);
+	lv_obj_set_style_pad_row(card, 3, 0);
 
 	lv_obj_t *row = lv_obj_create(card);
 	lv_obj_remove_style_all(row);
@@ -105,8 +105,12 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 
 	lv_obj_t *icon = lv_label_create(row);
 	lv_obj_set_style_text_font(icon, &lv_font_phosphor_18, 0);
-	char iconBuf[8];
-	lv_snprintf(iconBuf, sizeof(iconBuf), "%lc", iconCodepoint);
+	char iconBuf[4] = {
+	    static_cast<char>(0xE0 | (iconCodepoint >> 12)),
+	    static_cast<char>(0x80 | ((iconCodepoint >> 6) & 0x3F)),
+	    static_cast<char>(0x80 | (iconCodepoint & 0x3F)),
+	    '\0'
+	};
 	lv_label_set_text(icon, iconBuf);
 
 	lv_obj_t *titleLabel = lv_label_create(row);
