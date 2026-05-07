@@ -1,7 +1,11 @@
+/*
+ * SPDX-License-Identifier: OFL-1.1
+ */
+
 /*******************************************************************************
  * Size: 20 px
  * Bpp: 1
- * Opts: --font Inter-VariableFont_opsz,wght-instance.ttf --size 20 --bpp 1 --format lvgl --no-compress -r 0x20,0x25,0x43,0x48,0x52,0xB0 -o lv_font_inter_regular_20.c
+ * Opts: --font Inter/Inter-500-20.ttf --size 20 --bpp 1 --format lvgl --no-compress -r 0x20,0x25,0x43,0x48,0x52,0xB0 -o lv_font_inter_regular_20.c
  ******************************************************************************/
 
 #include <lvgl.h>
@@ -22,29 +26,28 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0x0,
 
     /* U+0025 "%" */
-    0x78, 0x19, 0x98, 0x23, 0x30, 0x86, 0x63, 0xc,
-    0xc4, 0xf, 0x10, 0x0, 0x20, 0x0, 0x80, 0x2,
-    0x3c, 0x4, 0xcc, 0x11, 0x98, 0x43, 0x30, 0x86,
-    0x62, 0xc, 0xcc, 0xf, 0x0,
+    0x78, 0x18, 0xfc, 0x18, 0xcc, 0x30, 0xcc, 0x20,
+    0xcc, 0x60, 0xfc, 0xc0, 0x78, 0x80, 0x1, 0x80,
+    0x3, 0x3e, 0x2, 0x7f, 0x6, 0x63, 0xc, 0x63,
+    0x8, 0x63, 0x10, 0x7f, 0x30, 0x1e,
 
     /* U+0043 "C" */
-    0xf, 0x81, 0xc3, 0x1c, 0xc, 0xc0, 0x2c, 0x1,
-    0xe0, 0x3, 0x0, 0x18, 0x0, 0xc0, 0x6, 0x0,
-    0x30, 0x6, 0xc0, 0x27, 0x3, 0x1c, 0x30, 0x3e,
-    0x0,
+    0xf, 0x83, 0xfe, 0x70, 0xf6, 0x3, 0xe0, 0x3c,
+    0x0, 0xc0, 0xc, 0x0, 0xc0, 0xc, 0x0, 0xe0,
+    0x36, 0x3, 0x70, 0xf3, 0xfe, 0xf, 0x80,
 
     /* U+0048 "H" */
-    0xc0, 0x78, 0xf, 0x1, 0xe0, 0x3c, 0x7, 0x80,
-    0xf0, 0x1f, 0xff, 0xc0, 0x78, 0xf, 0x1, 0xe0,
-    0x3c, 0x7, 0x80, 0xf0, 0x18,
+    0xc0, 0x3c, 0x3, 0xc0, 0x3c, 0x3, 0xc0, 0x3c,
+    0x3, 0xff, 0xff, 0xff, 0xc0, 0x3c, 0x3, 0xc0,
+    0x3c, 0x3, 0xc0, 0x3c, 0x3, 0xc0, 0x30,
 
     /* U+0052 "R" */
-    0xff, 0x30, 0x6c, 0xf, 0x3, 0xc0, 0xf0, 0x3c,
-    0xf, 0x6, 0xff, 0x31, 0x8c, 0x33, 0xc, 0xc1,
+    0xff, 0x3f, 0xec, 0x1b, 0x3, 0xc0, 0xf0, 0x3c,
+    0xf, 0x7, 0xff, 0xbf, 0x8c, 0x33, 0xe, 0xc1,
     0xb0, 0x7c, 0xc,
 
     /* U+00B0 "°" */
-    0x39, 0xdf, 0x1e, 0x3e, 0xe7, 0x0
+    0x38, 0xfb, 0x1e, 0x3c, 0x6f, 0x8e, 0x0
 };
 
 
@@ -54,12 +57,12 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
 
 static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
-    {.bitmap_index = 0, .adv_w = 87, .box_w = 1, .box_h = 1, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 1, .adv_w = 300, .box_w = 15, .box_h = 15, .ofs_x = 2, .ofs_y = 0},
-    {.bitmap_index = 30, .adv_w = 233, .box_w = 13, .box_h = 15, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 55, .adv_w = 234, .box_w = 11, .box_h = 15, .ofs_x = 2, .ofs_y = 0},
-    {.bitmap_index = 76, .adv_w = 205, .box_w = 10, .box_h = 15, .ofs_x = 2, .ofs_y = 0},
-    {.bitmap_index = 95, .adv_w = 142, .box_w = 7, .box_h = 6, .ofs_x = 1, .ofs_y = 8}
+    {.bitmap_index = 0, .adv_w = 82, .box_w = 1, .box_h = 1, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 1, .adv_w = 305, .box_w = 16, .box_h = 15, .ofs_x = 2, .ofs_y = 0},
+    {.bitmap_index = 31, .adv_w = 234, .box_w = 12, .box_h = 15, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 54, .adv_w = 235, .box_w = 12, .box_h = 15, .ofs_x = 2, .ofs_y = 0},
+    {.bitmap_index = 77, .adv_w = 206, .box_w = 10, .box_h = 15, .ofs_x = 2, .ofs_y = 0},
+    {.bitmap_index = 96, .adv_w = 143, .box_w = 7, .box_h = 7, .ofs_x = 1, .ofs_y = 8}
 };
 
 /*---------------------
@@ -87,6 +90,7 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
 /*Pair left and right glyphs for kerning*/
 static const uint8_t kern_pair_glyph_ids[] =
 {
+    5, 3,
     6, 3
 };
 
@@ -94,7 +98,7 @@ static const uint8_t kern_pair_glyph_ids[] =
  * 4.4 format which needs to scaled with `kern_scale`*/
 static const int8_t kern_pair_values[] =
 {
-    -2
+    0, -3
 };
 
 /*Collect the kern pair's data in one place*/
@@ -102,7 +106,7 @@ static const lv_font_fmt_txt_kern_pair_t kern_pairs =
 {
     .glyph_ids = kern_pair_glyph_ids,
     .values = kern_pair_values,
-    .pair_cnt = 1,
+    .pair_cnt = 2,
     .glyph_ids_size = 0
 };
 
@@ -155,7 +159,7 @@ lv_font_t lv_font_inter_regular_20 = {
 #endif
 #if LV_VERSION_CHECK(7, 4, 0) || LVGL_VERSION_MAJOR >= 8
     .underline_position = -3,
-    .underline_thickness = 1,
+    .underline_thickness = 2,
 #endif
     .dsc = &font_dsc,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
 #if LV_VERSION_CHECK(8, 2, 0) || LVGL_VERSION_MAJOR >= 9

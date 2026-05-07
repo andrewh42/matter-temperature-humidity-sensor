@@ -1,7 +1,11 @@
+/*
+ * SPDX-License-Identifier: OFL-1.1
+ */
+
 /*******************************************************************************
  * Size: 52 px
  * Bpp: 1
- * Opts: --font Inter-VariableFont_opsz,wght-instance.ttf --size 52 --bpp 1 --format lvgl --no-compress -r 0x2D-0x2E,0x30-0x39 -o lv_font_inter_extrabold_52.c
+ * Opts: --font Inter/Inter-760-52.ttf --size 52 --bpp 1 --format lvgl --no-compress -r 0x2D-0x2E,0x30-0x39 -o lv_font_inter_extrabold_52.c
  ******************************************************************************/
 
 #include <lvgl.h>

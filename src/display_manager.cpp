@@ -15,7 +15,7 @@ LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 LV_FONT_DECLARE(lv_font_inter_extrabold_52);
 LV_FONT_DECLARE(lv_font_inter_light_12);
 LV_FONT_DECLARE(lv_font_inter_regular_20);
-LV_FONT_DECLARE(lv_font_phosphor_18);
+LV_FONT_DECLARE(lv_font_phosphor_32);
 
 // Replace with codepoints from the Phosphor lookup script.
 static constexpr uint32_t kPhosphorThermometer = 0xE5C6;
@@ -80,7 +80,6 @@ void DisplayManager::SignalDrawCallback(lv_event_t *event)
 // ---------------------------------------------------------------------------
 
 lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
-                                            uint32_t   iconCodepoint,
                                             const char *title,
                                             const char *unit)
 {
@@ -92,43 +91,62 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 	lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 	lv_obj_set_style_pad_all(card, 0, 0);
-	lv_obj_set_style_pad_row(card, 3, 0);
+	lv_obj_set_style_pad_row(card, 11, 0);
 
-	lv_obj_t *row = lv_obj_create(card);
-	lv_obj_remove_style_all(row);
-	lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-	lv_obj_set_layout(row, LV_LAYOUT_FLEX);
-	lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-	lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-	lv_obj_set_style_pad_all(row, 0, 0);
-	lv_obj_set_style_pad_column(row, 6, 0);
-
-	lv_obj_t *icon = lv_label_create(row);
-	lv_obj_set_style_text_font(icon, &lv_font_phosphor_18, 0);
-	char iconBuf[4] = {
-	    static_cast<char>(0xE0 | (iconCodepoint >> 12)),
-	    static_cast<char>(0x80 | ((iconCodepoint >> 6) & 0x3F)),
-	    static_cast<char>(0x80 | (iconCodepoint & 0x3F)),
-	    '\0'
-	};
-	lv_label_set_text(icon, iconBuf);
-
-	lv_obj_t *titleLabel = lv_label_create(row);
+	lv_obj_t *titleLabel = lv_label_create(card);
 	lv_obj_set_style_text_font(titleLabel, &lv_font_inter_light_12, 0);
 	lv_obj_set_style_text_letter_space(titleLabel, 2, 0);
 	lv_label_set_text(titleLabel, title);
 
-	lv_obj_t *valueLabel = lv_label_create(card);
+	lv_obj_t *valueRow = lv_obj_create(card);
+	lv_obj_remove_style_all(valueRow);
+	lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+	lv_obj_set_layout(valueRow, LV_LAYOUT_FLEX);
+	lv_obj_set_flex_flow(valueRow, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(valueRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_all(valueRow, 0, 0);
+	lv_obj_set_style_pad_column(valueRow, 4, 0);
+
+	lv_obj_t *valueLabel = lv_label_create(valueRow);
 	lv_obj_set_style_text_font(valueLabel, &lv_font_inter_extrabold_52, 0);
-	lv_obj_set_style_pad_top(valueLabel, 2, 0);
 	lv_label_set_text(valueLabel, "--.-");
 
-	lv_obj_t *unitLabel = lv_label_create(card);
+	lv_obj_t *unitLabel = lv_label_create(valueRow);
 	lv_obj_set_style_text_font(unitLabel, &lv_font_inter_regular_20, 0);
-	lv_obj_set_style_pad_bottom(unitLabel, 4, 0);
 	lv_label_set_text(unitLabel, unit);
 
+	// Bottom-align aligns bounding-box bottoms, not baselines. Lift the unit
+	// label by the difference in descender space so baselines coincide.
+	int32_t baselineOffset = (int32_t)lv_font_inter_extrabold_52.base_line -
+	                         (int32_t)lv_font_inter_regular_20.base_line;
+	lv_obj_set_style_pad_bottom(unitLabel, baselineOffset, 0);
+
 	return valueLabel;
+}
+
+// ---------------------------------------------------------------------------
+// CreateIcon — creates a Phosphor glyph label on screen, vertically centred
+//              on valueLabel. Must be called after lv_obj_update_layout()
+//              so valueLabel coordinates are valid.
+// ---------------------------------------------------------------------------
+
+void DisplayManager::CreateIcon(lv_obj_t *screen, uint32_t codepoint, lv_obj_t *valueLabel)
+{
+	lv_obj_t *icon = lv_label_create(screen);
+	lv_obj_add_flag(icon, LV_OBJ_FLAG_FLOATING);
+	lv_obj_set_style_text_font(icon, &lv_font_phosphor_32, 0);
+	char buf[4] = {
+	    static_cast<char>(0xE0 | (codepoint >> 12)),
+	    static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)),
+	    static_cast<char>(0x80 | (codepoint & 0x3F)),
+	    '\0'
+	};
+	lv_label_set_text(icon, buf);
+
+	lv_area_t area;
+	lv_obj_get_coords(valueLabel, &area);
+	int32_t centreY = area.y1 + (area.y2 - area.y1) / 2;
+	lv_obj_set_pos(icon, 0, centreY - lv_font_get_line_height(&lv_font_phosphor_32) / 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -172,10 +190,10 @@ CHIP_ERROR DisplayManager::Init()
 	lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(container, LV_FLEX_ALIGN_SPACE_EVENLY,
 	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-	lv_obj_set_style_pad_hor(container, 16, 0);
+	lv_obj_set_style_pad_left(container, 20, 0);
 
-	mValueTemperature = CreateSensorCard(container, kPhosphorThermometer,
-	                                     "TEMPERATURE", "\xC2\xB0" "C");
+	mValueTemperature = CreateSensorCard(container, "TEMPERATURE",
+	                                     "\xC2\xB0" "C");
 
 	lv_obj_t *divider = lv_obj_create(container);
 	lv_obj_remove_style_all(divider);
@@ -183,8 +201,14 @@ CHIP_ERROR DisplayManager::Init()
 	lv_obj_set_style_bg_color(divider, lv_color_white(), 0);
 	lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
 
-	mValueHumidity = CreateSensorCard(container, kPhosphorDrop,
-	                                  "HUMIDITY", "%RH");
+	mValueHumidity = CreateSensorCard(container, "HUMIDITY", "%");
+
+	// Layout pass: computes card positions and value label coordinates.
+	lv_obj_update_layout(screen);
+
+	// Icons float on screen (outside the container) so they're unaffected by pad_left.
+	CreateIcon(screen, kPhosphorThermometer, mValueTemperature);
+	CreateIcon(screen, kPhosphorDrop,        mValueHumidity);
 
 	mInitialized = true;
 	return CHIP_NO_ERROR;
@@ -257,6 +281,7 @@ void DisplayManager::DrawMeasurements()
 	uint16_t humidityTenths = (mCurrentHumidity + 10) / 20 * 2; // 0.2% steps
 	lv_label_set_text_fmt(mValueHumidity, "%d.%01d",
 	                      humidityTenths / 10, humidityTenths % 10);
+
 }
 
 void DisplayManager::DrawSignalBars()

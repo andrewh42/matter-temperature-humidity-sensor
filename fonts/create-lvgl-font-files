@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# Convert Inter and Phosphor TTF font files to LVGL .c files.
+# Includes the font licence reference at the top of the generated files.
+
+create_inter_font_instance () (
+  weight="$1"
+  size="$2"
+
+  if [ -z "$weight" -o -z "$size" ]; then
+    echo "usage: $0 <font size> <font weight>"
+    exit 1
+  fi
+
+  cd Inter
+  uvx fonttools varLib.mutator -o Inter-$weight-$size.ttf Inter-VariableFont_opsz,wght.ttf wght=$weight opsz=$size
+)
+
+ttf_to_lvgl () {
+  font_file="$1"
+  size="$2"
+  range="$3"
+  licence="$4"
+  lv_font_file="$5"
+
+  if [ ! -s "$font_file" -o -z "$lv_font_file" ]; then
+    echo "usage: $0 <font filename> <font size> <character range> <LVGL output font file>"
+    exit 1
+  fi
+
+  npx lv_font_conv@1.5.3 \
+      --font "$font_file" --size $size --bpp 1 \
+      --format lvgl --no-compress \
+      -r "$range" \
+      -o $lv_font_file
+
+  sed -i '' "
+1i\\
+/*\\
+ * SPDX-License-Identifier: ${licence}\\
+ */\\
+
+/^#ifdef LV_LVGL_H_INCLUDE_SIMPLE$/,/^#endif$/c\\
+#include <lvgl.h>\\
+" $lv_font_file
+}
+
+create_inter_font_instance 350 12
+ttf_to_lvgl Inter/Inter-350-12.ttf 12 "0x20,0x41,0x44,0x45,0x48,0x49,0x4D,0x50,0x52,0x54,0x55,0x59" OFL-1.1 lv_font_inter_light_12.c
+rm Inter/Inter-350-12.ttf
+
+create_inter_font_instance 500 20
+ttf_to_lvgl Inter/Inter-500-20.ttf 20 "0x20,0x25,0x43,0x48,0x52,0xB0" OFL-1.1 lv_font_inter_regular_20.c
+rm Inter/Inter-500-20.ttf
+
+create_inter_font_instance 760 52
+ttf_to_lvgl Inter/Inter-760-52.ttf 52 "0x2D-0x2E,0x30-0x39" OFL-1.1 lv_font_inter_extrabold_52.c
+rm Inter/Inter-760-52.ttf
+
+ttf_to_lvgl Phosphor.ttf 32 "0xE210,0xE5C6" MIT lv_font_phosphor_32.c

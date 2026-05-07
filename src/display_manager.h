@@ -26,8 +26,9 @@ public:
 private:
 	static void SignalDrawCallback(lv_event_t *event);
 
-	lv_obj_t *CreateSensorCard(lv_obj_t *parent, uint32_t iconCodepoint,
-	                            const char *title, const char *unit);
+	lv_obj_t *CreateSensorCard(lv_obj_t *parent, const char *title,
+	                            const char *unit);
+	void CreateIcon(lv_obj_t *screen, uint32_t codepoint, lv_obj_t *valueLabel);
 	void DrawMeasurements();
 	void DrawSignalBars();
 

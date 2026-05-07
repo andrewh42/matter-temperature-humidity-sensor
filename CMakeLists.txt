@@ -40,7 +40,7 @@ target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/lv_font_inter_extrabold_52.c
   src/lv_font_inter_light_12.c
   src/lv_font_inter_regular_20.c
-  src/lv_font_phosphor_18.c
+  src/lv_font_phosphor_32.c
 )
 
 ncs_configure_data_model()

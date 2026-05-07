@@ -1,7 +1,11 @@
+/*
+ * SPDX-License-Identifier: OFL-1.1
+ */
+
 /*******************************************************************************
  * Size: 12 px
  * Bpp: 1
- * Opts: --font Inter-VariableFont_opsz,wght-instance.ttf --size 12 --bpp 1 --format lvgl --no-compress -r 0x20,0x41,0x44,0x45,0x48,0x49,0x4D,0x50,0x52,0x54,0x55,0x59 -o lv_font_inter_light_12.c
+ * Opts: --font Inter/Inter-350-12.ttf --size 12 --bpp 1 --format lvgl --no-compress -r 0x20,0x41,0x44,0x45,0x48,0x49,0x4D,0x50,0x52,0x54,0x55,0x59 -o lv_font_inter_light_12.c
  ******************************************************************************/
 
 #include <lvgl.h>
@@ -22,8 +26,8 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0x0,
 
     /* U+0041 "A" */
-    0x18, 0x18, 0x28, 0x24, 0x24, 0x3e, 0x42, 0x42,
-    0x81,
+    0x18, 0x18, 0x14, 0x24, 0x24, 0x3e, 0x42, 0x42,
+    0xc1,
 
     /* U+0044 "D" */
     0xf9, 0xa, 0xc, 0x18, 0x30, 0x60, 0xc2, 0xf8,
@@ -38,14 +42,14 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0xff, 0x80,
 
     /* U+004D "M" */
-    0xc1, 0xe0, 0xf0, 0xb4, 0x5a, 0x2c, 0xa6, 0x53,
-    0x31, 0x88, 0x80,
+    0xc1, 0xe0, 0xf0, 0x74, 0x5a, 0x2c, 0xa6, 0x53,
+    0x29, 0x88, 0x80,
 
     /* U+0050 "P" */
     0xfa, 0x38, 0x61, 0x8f, 0xe8, 0x20, 0x80,
 
     /* U+0052 "R" */
-    0xfa, 0x18, 0x61, 0xfa, 0x28, 0xa1, 0x84,
+    0xfa, 0x18, 0x61, 0xfa, 0x28, 0xa3, 0x84,
 
     /* U+0054 "T" */
     0xfe, 0x20, 0x40, 0x81, 0x2, 0x4, 0x8, 0x10,
@@ -65,17 +69,17 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
 static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
     {.bitmap_index = 0, .adv_w = 54, .box_w = 1, .box_h = 1, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 1, .adv_w = 129, .box_w = 8, .box_h = 9, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 1, .adv_w = 131, .box_w = 8, .box_h = 9, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 10, .adv_w = 138, .box_w = 7, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 18, .adv_w = 114, .box_w = 5, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 18, .adv_w = 115, .box_w = 5, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
     {.bitmap_index = 24, .adv_w = 142, .box_w = 7, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 32, .adv_w = 50, .box_w = 1, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 32, .adv_w = 51, .box_w = 1, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
     {.bitmap_index = 34, .adv_w = 173, .box_w = 9, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 45, .adv_w = 121, .box_w = 6, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 52, .adv_w = 122, .box_w = 6, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 59, .adv_w = 122, .box_w = 7, .box_h = 9, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 67, .adv_w = 141, .box_w = 7, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 75, .adv_w = 128, .box_w = 7, .box_h = 9, .ofs_x = 1, .ofs_y = 0}
+    {.bitmap_index = 45, .adv_w = 122, .box_w = 6, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 52, .adv_w = 123, .box_w = 6, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 59, .adv_w = 123, .box_w = 7, .box_h = 9, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 67, .adv_w = 142, .box_w = 7, .box_h = 9, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 75, .adv_w = 129, .box_w = 7, .box_h = 9, .ofs_x = 1, .ofs_y = 0}
 };
 
 /*---------------------
@@ -124,7 +128,7 @@ static const uint8_t kern_pair_glyph_ids[] =
  * 4.4 format which needs to scaled with `kern_scale`*/
 static const int8_t kern_pair_values[] =
 {
-    3, -16, -4, -14, -6, -7, -6, -14,
+    3, -16, -4, -14, -6, -6, -6, -14,
     -5, -16, 4, -4, -14, 4
 };
 
