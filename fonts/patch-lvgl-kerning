@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+"""Patch GPOS kern pairs into an lv_font_conv-generated C file.
+
+Reads the TTF's GPOS PairPos lookups (Format 1 + Format 2), maps the kern
+pairs to LVGL glyph IDs by parsing the C file's cmap section, and rewrites
+the kern section in place. Idempotent.
+
+Usage: patch-lvgl-kerning <c-file> <ttf-file> <pixel-size>
+"""
+
+import re
+import sys
+from pathlib import Path
+from fontTools.ttLib import TTFont
+
+
+# ---------------------------------------------------------------------------
+# GPOS kern extraction
+# ---------------------------------------------------------------------------
+
+def extract_kern_pairs(ttf):
+    """Return {(left_glyph_name, right_glyph_name): font_units} from GPOS PairPos."""
+    pairs = {}
+    if "GPOS" not in ttf:
+        return pairs
+
+    for lookup in ttf["GPOS"].table.LookupList.Lookup:
+        if lookup.LookupType == 2:
+            subtables = lookup.SubTable
+        elif lookup.LookupType == 9:
+            subtables = [ext.ExtSubTable for ext in lookup.SubTable
+                         if hasattr(ext.ExtSubTable, "Format")]
+        else:
+            continue
+
+        for sub in subtables:
+            if not (getattr(sub, "ValueFormat1", 0) & 0x0004):
+                continue   # no XAdvance component
+            if sub.Format == 1:
+                _collect_format1(sub, pairs)
+            elif sub.Format == 2:
+                _collect_format2(sub, pairs)
+    return pairs
+
+
+def _collect_format1(sub, pairs):
+    for i, first in enumerate(sub.Coverage.glyphs):
+        for pvr in sub.PairSet[i].PairValueRecord:
+            adv = getattr(pvr.Value1, "XAdvance", 0) if pvr.Value1 else 0
+            if adv:
+                pairs[(first, pvr.SecondGlyph)] = \
+                    pairs.get((first, pvr.SecondGlyph), 0) + adv
+
+
+def _collect_format2(sub, pairs):
+    cls1_defs = sub.ClassDef1.classDefs
+    cls2_defs = sub.ClassDef2.classDefs
+    cls2_by_class = {}
+    for g, c in cls2_defs.items():
+        cls2_by_class.setdefault(c, []).append(g)
+
+    for first in sub.Coverage.glyphs:
+        cls1 = cls1_defs.get(first, 0)
+        for cls2_idx, rec in enumerate(sub.Class1Record[cls1].Class2Record):
+            if cls2_idx == 0:
+                continue
+            adv = getattr(rec.Value1, "XAdvance", 0) if rec.Value1 else 0
+            if adv:
+                for second in cls2_by_class.get(cls2_idx, []):
+                    pairs[(first, second)] = \
+                        pairs.get((first, second), 0) + adv
+
+
+# ---------------------------------------------------------------------------
+# C file parsing — read cmap to get LVGL glyph_id <-> codepoint mapping
+# ---------------------------------------------------------------------------
+
+def parse_uint_array(c_text, name):
+    """Find `static const uintN_t <name>[] = { ... };` and return list of ints."""
+    pat = re.compile(
+        r"static\s+const\s+uint(?:8|16|32)_t\s+" + re.escape(name) +
+        r"\[\]\s*=\s*\{([^}]*)\};",
+        re.DOTALL,
+    )
+    m = pat.search(c_text)
+    if not m:
+        return []
+    return [int(s, 0) for s in re.findall(r"-?0x[0-9a-fA-F]+|-?\d+", m.group(1))]
+
+
+def parse_cmap_entries(c_text):
+    """Parse the cmaps[] array. Returns list of dicts with cmap fields."""
+    block = re.search(
+        r"static\s+const\s+lv_font_fmt_txt_cmap_t\s+cmaps\[\]\s*=\s*\{(.*?)\};",
+        c_text, re.DOTALL,
+    )
+    if not block:
+        return []
+
+    entries = []
+    for entry in re.finditer(r"\{([^{}]*)\}", block.group(1)):
+        body = entry.group(1)
+        d = {}
+        for field in ("range_start", "range_length", "glyph_id_start", "list_length"):
+            m = re.search(rf"\.{field}\s*=\s*(\d+)", body)
+            if m:
+                d[field] = int(m.group(1))
+        for field in ("unicode_list", "glyph_id_ofs_list"):
+            m = re.search(rf"\.{field}\s*=\s*(\w+)", body)
+            if m:
+                d[field] = None if m.group(1) == "NULL" else m.group(1)
+        m = re.search(r"\.type\s*=\s*(\w+)", body)
+        if m:
+            d["type"] = m.group(1)
+        entries.append(d)
+    return entries
+
+
+def build_glyph_id_to_codepoint(c_text):
+    """Walk all cmaps and return {lvgl_glyph_id: codepoint}."""
+    mapping = {}
+    for cmap in parse_cmap_entries(c_text):
+        rs    = cmap["range_start"]
+        gids  = cmap["glyph_id_start"]
+        kind  = cmap["type"]
+
+        if kind == "LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY":
+            for i in range(cmap["range_length"]):
+                mapping[gids + i] = rs + i
+
+        elif kind == "LV_FONT_FMT_TXT_CMAP_FORMAT0_FULL":
+            ofs = parse_uint_array(c_text, cmap["glyph_id_ofs_list"])
+            for i, off in enumerate(ofs):
+                if off != 0:
+                    mapping[gids + off] = rs + i
+
+        elif kind == "LV_FONT_FMT_TXT_CMAP_SPARSE_TINY":
+            ucl = parse_uint_array(c_text, cmap["unicode_list"])
+            for i, u_off in enumerate(ucl):
+                mapping[gids + i] = rs + u_off
+
+        elif kind == "LV_FONT_FMT_TXT_CMAP_SPARSE_FULL":
+            ucl = parse_uint_array(c_text, cmap["unicode_list"])
+            ofs = parse_uint_array(c_text, cmap["glyph_id_ofs_list"])
+            for i, (u_off, off) in enumerate(zip(ucl, ofs)):
+                mapping[gids + off] = rs + u_off
+
+    return mapping
+
+
+# ---------------------------------------------------------------------------
+# Pair conversion and C generation
+# ---------------------------------------------------------------------------
+
+KERN_SCALE = 16   # stored value = pixel kern (1:1)
+
+
+def lvgl_kern_pairs(ttf, c_text, pixel_size):
+    """Return sorted [(lvgl_left, lvgl_right, int8_value), ...] for pairs whose
+    glyphs both map to LVGL glyph IDs."""
+    em = ttf["head"].unitsPerEm
+    cp_to_name = ttf.getBestCmap()
+
+    name_to_id = {}
+    for gid, cp in build_glyph_id_to_codepoint(c_text).items():
+        gname = cp_to_name.get(cp)
+        if gname:
+            name_to_id[gname] = gid
+
+    out = []
+    for (left, right), funits in extract_kern_pairs(ttf).items():
+        if left in name_to_id and right in name_to_id:
+            stored = round(funits * pixel_size / em)
+            if stored != 0 and -128 <= stored <= 127:
+                out.append((name_to_id[left], name_to_id[right], stored))
+    out.sort()
+    return out
+
+
+def render_kern_section(pairs):
+    max_id    = max(max(l, r) for l, r, _ in pairs)
+    bits      = 8 if max_id < 256 else 16
+    type_str  = "uint8_t" if bits == 8 else "uint16_t"
+    size_flag = 0 if bits == 8 else 1
+
+    ids_body  = ",\n    ".join(f"{l}, {r}" for l, r, _ in pairs)
+    vals_body = ",\n    ".join(str(v) for _, _, v in pairs)
+
+    return (
+        "/*-----------------\n"
+        " *    KERNING\n"
+        " *----------------*/\n\n\n"
+        "/*Pair left and right glyphs for kerning*/\n"
+        f"static const {type_str} kern_pair_glyph_ids[] =\n"
+        "{\n"
+        f"    {ids_body}\n"
+        "};\n\n"
+        "/* Kerning between the respective left and right glyphs\n"
+        " * 4.4 format which needs to scaled with `kern_scale`*/\n"
+        "static const int8_t kern_pair_values[] =\n"
+        "{\n"
+        f"    {vals_body}\n"
+        "};\n\n"
+        "/*Collect the kern pair's data in one place*/\n"
+        "static const lv_font_fmt_txt_kern_pair_t kern_pairs =\n"
+        "{\n"
+        "    .glyph_ids = kern_pair_glyph_ids,\n"
+        "    .values = kern_pair_values,\n"
+        f"    .pair_cnt = {len(pairs)},\n"
+        f"    .glyph_ids_size = {size_flag}\n"
+        "};\n"
+    )
+
+
+def patch(c_text, kern_section):
+    """Replace any existing KERNING block, insert new one before ALL CUSTOM DATA,
+    and update font_dsc.kern_dsc / .kern_scale."""
+
+    # Strip any existing KERNING section (idempotent re-runs).
+    c_text = re.sub(
+        r"/\*-+\s*\n\s*\*\s*KERNING.*?\};\s*\n+"
+        r"(?=/\*-+\s*\n\s*\*\s*ALL CUSTOM DATA)",
+        "", c_text, flags=re.DOTALL,
+    )
+
+    # Insert the new kern section just before ALL CUSTOM DATA.
+    c_text = re.sub(
+        r"(/\*-+\s*\n\s*\*\s*ALL CUSTOM DATA)",
+        lambda m: kern_section + "\n\n\n" + m.group(1),
+        c_text, count=1,
+    )
+
+    # Wire it up in font_dsc.
+    c_text = re.sub(r"\.kern_dsc\s*=\s*[^,\n]+,",
+                    ".kern_dsc = &kern_pairs,", c_text)
+    c_text = re.sub(r"\.kern_scale\s*=\s*\d+,",
+                    f".kern_scale = {KERN_SCALE},", c_text)
+
+    return c_text
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    if len(sys.argv) != 4:
+        print(f"usage: {sys.argv[0]} <c-file> <ttf-file> <pixel-size>",
+              file=sys.stderr)
+        sys.exit(1)
+
+    c_path     = Path(sys.argv[1])
+    ttf_path   = sys.argv[2]
+    pixel_size = int(sys.argv[3])
+
+    c_text = c_path.read_text()
+    ttf    = TTFont(ttf_path)
+
+    pairs = lvgl_kern_pairs(ttf, c_text, pixel_size)
+    if not pairs:
+        print("No kern pairs found in cmap glyphs; nothing to patch.")
+        return
+
+    c_path.write_text(patch(c_text, render_kern_section(pairs)))
+    print(f"Patched {c_path}: {len(pairs)} kern pair(s) at {pixel_size}px")
+
+
+if __name__ == "__main__":
+    main()
