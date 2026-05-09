@@ -5,9 +5,19 @@ Reads the TTF's GPOS PairPos lookups (Format 1 + Format 2), maps the kern
 pairs to LVGL glyph IDs by parsing the C file's cmap section, and rewrites
 the kern section in place. Idempotent.
 
+A sidecar `<c-file-stem>.kern.json` (next to the C file) is loaded if
+present and used to override or add kern pairs. Format:
+
+    { "TE": -1.0, "TY": -2.0 }
+
+Each key is a 2-character ASCII pair; the value is the desired kern in
+pixels at the target size. Setting a pair to 0 effectively removes it.
+
 Usage: patch-lvgl-kerning <c-file> <ttf-file> <pixel-size>
 """
 
+import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -152,12 +162,36 @@ def build_glyph_id_to_codepoint(c_text):
 # Pair conversion and C generation
 # ---------------------------------------------------------------------------
 
-KERN_SCALE = 16   # stored value = pixel kern (1:1)
+def load_kern_overrides(c_path):
+    """Load <stem>.kern.json next to the C file, if present.
+
+    Returns {(left_char, right_char): pixel_kern}. Missing file -> {}."""
+    override_path = c_path.with_suffix(".kern.json")
+    if not override_path.exists():
+        return {}
+    data = json.loads(override_path.read_text())
+    overrides = {}
+    for key, value in data.items():
+        if len(key) != 2:
+            print(f"warning: override key {key!r} must be exactly 2 chars; skipping",
+                  file=sys.stderr)
+            continue
+        overrides[(key[0], key[1])] = float(value)
+    return overrides
 
 
-def lvgl_kern_pairs(ttf, c_text, pixel_size):
-    """Return sorted [(lvgl_left, lvgl_right, int8_value), ...] for pairs whose
-    glyphs both map to LVGL glyph IDs."""
+def lvgl_kern_pairs(ttf, c_text, pixel_size, overrides=None):
+    """Return (sorted_pairs, kern_scale).
+
+    Each pair is (lvgl_left, lvgl_right, int8_value). `kern_scale` is chosen
+    as the smallest value that keeps every stored kern within int8 range,
+    which preserves sub-pixel precision at small font sizes (LVGL formula:
+    pixel_kern = stored * kern_scale / 256). With a fixed kern_scale of 256
+    every pair smaller than ~0.5 px would round to zero and be dropped.
+
+    `overrides` is {(left_char, right_char): pixel_kern}; matching pairs are
+    replaced (or added if not present in GPOS)."""
+    overrides = overrides or {}
     em = ttf["head"].unitsPerEm
     cp_to_name = ttf.getBestCmap()
 
@@ -167,14 +201,33 @@ def lvgl_kern_pairs(ttf, c_text, pixel_size):
         if gname:
             name_to_id[gname] = gid
 
-    out = []
+    pixel_pairs = {}
     for (left, right), funits in extract_kern_pairs(ttf).items():
         if left in name_to_id and right in name_to_id:
-            stored = round(funits * pixel_size / em)
-            if stored != 0 and -128 <= stored <= 127:
-                out.append((name_to_id[left], name_to_id[right], stored))
+            pixel_pairs[(name_to_id[left], name_to_id[right])] = funits * pixel_size / em
+
+    for (left_ch, right_ch), pixel_kern in overrides.items():
+        left_name = cp_to_name.get(ord(left_ch))
+        right_name = cp_to_name.get(ord(right_ch))
+        if left_name not in name_to_id or right_name not in name_to_id:
+            print(f"warning: override pair {left_ch + right_ch!r} not in font cmap; skipping",
+                  file=sys.stderr)
+            continue
+        pixel_pairs[(name_to_id[left_name], name_to_id[right_name])] = pixel_kern
+
+    if not pixel_pairs:
+        return [], 256
+
+    max_abs = max(abs(p) for p in pixel_pairs.values())
+    kern_scale = max(1, math.ceil(max_abs * 256 / 127))
+
+    out = []
+    for (gid_left, gid_right), pixel_kern in pixel_pairs.items():
+        stored = round(pixel_kern * 256 / kern_scale)
+        if stored != 0:
+            out.append((gid_left, gid_right, stored))
     out.sort()
-    return out
+    return out, kern_scale
 
 
 def render_kern_section(pairs):
@@ -212,7 +265,7 @@ def render_kern_section(pairs):
     )
 
 
-def patch(c_text, kern_section):
+def patch(c_text, kern_section, kern_scale):
     """Replace any existing KERNING block, insert new one before ALL CUSTOM DATA,
     and update font_dsc.kern_dsc / .kern_scale."""
 
@@ -234,7 +287,7 @@ def patch(c_text, kern_section):
     c_text = re.sub(r"\.kern_dsc\s*=\s*[^,\n]+,",
                     ".kern_dsc = &kern_pairs,", c_text)
     c_text = re.sub(r"\.kern_scale\s*=\s*\d+,",
-                    f".kern_scale = {KERN_SCALE},", c_text)
+                    f".kern_scale = {kern_scale},", c_text)
 
     return c_text
 
@@ -253,16 +306,19 @@ def main():
     ttf_path   = sys.argv[2]
     pixel_size = int(sys.argv[3])
 
-    c_text = c_path.read_text()
-    ttf    = TTFont(ttf_path)
+    c_text    = c_path.read_text()
+    ttf       = TTFont(ttf_path)
+    overrides = load_kern_overrides(c_path)
 
-    pairs = lvgl_kern_pairs(ttf, c_text, pixel_size)
+    pairs, kern_scale = lvgl_kern_pairs(ttf, c_text, pixel_size, overrides)
     if not pairs:
         print("No kern pairs found in cmap glyphs; nothing to patch.")
         return
 
-    c_path.write_text(patch(c_text, render_kern_section(pairs)))
-    print(f"Patched {c_path}: {len(pairs)} kern pair(s) at {pixel_size}px")
+    c_path.write_text(patch(c_text, render_kern_section(pairs), kern_scale))
+    extra = f" (+{len(overrides)} override(s))" if overrides else ""
+    print(f"Patched {c_path}: {len(pairs)} kern pair(s) at {pixel_size}px, "
+          f"kern_scale={kern_scale}{extra}")
 
 
 if __name__ == "__main__":

@@ -47,6 +47,10 @@ ttf_to_lvgl () {
 
 create_inter_font_instance 350 12
 ttf_to_lvgl Inter/Inter-350-12.ttf 12 "0x20,0x41,0x44,0x45,0x48,0x49,0x4D,0x50,0x52,0x54,0x55,0x59" OFL-1.1 lv_font_inter_light_12.c
+# Re-extract kerning straight from GPOS at higher precision and apply manual
+# overrides from lv_font_inter_light_12.kern.json (used to tighten T-pairs
+# whose 1-bpp render shows hard white columns where AA would otherwise blur).
+./patch-lvgl-kerning lv_font_inter_light_12.c Inter/Inter-350-12.ttf 12
 
 create_inter_font_instance 500 20
 ttf_to_lvgl Inter/Inter-500-20.ttf 20 "0x20,0x25,0x43,0x48,0x52,0xB0" OFL-1.1 lv_font_inter_regular_20.c

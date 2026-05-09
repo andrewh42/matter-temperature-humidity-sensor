@@ -118,6 +118,8 @@ static const uint8_t kern_pair_glyph_ids[] =
     8, 2,
     9, 12,
     10, 2,
+    10, 4,
+    10, 11,
     10, 12,
     11, 2,
     12, 2,
@@ -128,8 +130,22 @@ static const uint8_t kern_pair_glyph_ids[] =
  * 4.4 format which needs to scaled with `kern_scale`*/
 static const int8_t kern_pair_values[] =
 {
-    3, -16, -4, -14, -6, -6, -6, -14,
-    -5, -16, 4, -4, -14, 4
+    10,
+    -52,
+    -12,
+    -45,
+    -20,
+    -20,
+    -21,
+    -45,
+    -15,
+    -52,
+    -51,
+    -51,
+    -102,
+    -12,
+    -45,
+    12
 };
 
 /*Collect the kern pair's data in one place*/
@@ -137,9 +153,11 @@ static const lv_font_fmt_txt_kern_pair_t kern_pairs =
 {
     .glyph_ids = kern_pair_glyph_ids,
     .values = kern_pair_values,
-    .pair_cnt = 14,
+    .pair_cnt = 16,
     .glyph_ids_size = 0
 };
+
+
 
 /*--------------------
  *  ALL CUSTOM DATA
@@ -159,7 +177,7 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
     .glyph_dsc = glyph_dsc,
     .cmaps = cmaps,
     .kern_dsc = &kern_pairs,
-    .kern_scale = 16,
+    .kern_scale = 5,
     .cmap_num = 1,
     .bpp = 1,
     .kern_classes = 0,

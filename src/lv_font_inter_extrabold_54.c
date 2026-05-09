@@ -285,6 +285,95 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
 
 
 
+/*-----------------
+ *    KERNING
+ *----------------*/
+
+
+/*Pair left and right glyphs for kerning*/
+static const uint8_t kern_pair_glyph_ids[] =
+{
+    2, 3,
+    2, 4,
+    2, 5,
+    2, 6,
+    2, 8,
+    2, 9,
+    2, 10,
+    2, 11,
+    2, 12,
+    3, 2,
+    3, 10,
+    5, 7,
+    6, 2,
+    7, 2,
+    7, 4,
+    7, 10,
+    8, 2,
+    8, 4,
+    9, 2,
+    10, 2,
+    10, 3,
+    10, 6,
+    10, 7,
+    10, 8,
+    10, 9,
+    10, 10,
+    10, 11,
+    10, 12,
+    11, 2,
+    12, 2,
+    12, 10
+};
+
+/* Kerning between the respective left and right glyphs
+ * 4.4 format which needs to scaled with `kern_scale`*/
+static const int8_t kern_pair_values[] =
+{
+    -29,
+    -109,
+    1,
+    -16,
+    -5,
+    -29,
+    -34,
+    -10,
+    -14,
+    -29,
+    -19,
+    -15,
+    -14,
+    -33,
+    -55,
+    -52,
+    -18,
+    -19,
+    -26,
+    -123,
+    -15,
+    -16,
+    -57,
+    -10,
+    -15,
+    19,
+    -14,
+    -10,
+    -14,
+    -29,
+    -19
+};
+
+/*Collect the kern pair's data in one place*/
+static const lv_font_fmt_txt_kern_pair_t kern_pairs =
+{
+    .glyph_ids = kern_pair_glyph_ids,
+    .values = kern_pair_values,
+    .pair_cnt = 31,
+    .glyph_ids_size = 0
+};
+
+
+
 /*--------------------
  *  ALL CUSTOM DATA
  *--------------------*/
@@ -302,8 +391,8 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
     .glyph_bitmap = glyph_bitmap,
     .glyph_dsc = glyph_dsc,
     .cmaps = cmaps,
-    .kern_dsc = NULL,
-    .kern_scale = 0,
+    .kern_dsc = &kern_pairs,
+    .kern_scale = 14,
     .cmap_num = 1,
     .bpp = 1,
     .kern_classes = 0,
