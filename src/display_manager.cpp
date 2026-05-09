@@ -12,7 +12,7 @@
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
-LV_FONT_DECLARE(lv_font_inter_extrabold_52);
+LV_FONT_DECLARE(lv_font_inter_extrabold_54);
 LV_FONT_DECLARE(lv_font_inter_light_12);
 LV_FONT_DECLARE(lv_font_inter_regular_20);
 LV_FONT_DECLARE(lv_font_phosphor_32);
@@ -108,7 +108,7 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 	lv_obj_set_style_pad_column(valueRow, 4, 0);
 
 	lv_obj_t *valueLabel = lv_label_create(valueRow);
-	lv_obj_set_style_text_font(valueLabel, &lv_font_inter_extrabold_52, 0);
+	lv_obj_set_style_text_font(valueLabel, &lv_font_inter_extrabold_54, 0);
 	lv_label_set_text(valueLabel, "--.-");
 
 	lv_obj_t *unitLabel = lv_label_create(valueRow);
@@ -117,7 +117,7 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 
 	// Bottom-align aligns bounding-box bottoms, not baselines. Lift the unit
 	// label by the difference in descender space so baselines coincide.
-	int32_t baselineOffset = (int32_t)lv_font_inter_extrabold_52.base_line -
+	int32_t baselineOffset = (int32_t)lv_font_inter_extrabold_54.base_line -
 	                         (int32_t)lv_font_inter_regular_20.base_line;
 	lv_obj_set_style_pad_bottom(unitLabel, baselineOffset, 0);
 
@@ -163,7 +163,7 @@ CHIP_ERROR DisplayManager::Init()
 	LOG_INF("Display device is ready");
 
 	lv_display_t *disp = lv_display_get_default();
-	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_inter_extrabold_52));
+	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_inter_extrabold_54));
 
 	lv_obj_t *screen = lv_screen_active();
 

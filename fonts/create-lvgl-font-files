@@ -51,9 +51,9 @@ ttf_to_lvgl Inter/Inter-350-12.ttf 12 "0x20,0x41,0x44,0x45,0x48,0x49,0x4D,0x50,0
 create_inter_font_instance 500 20
 ttf_to_lvgl Inter/Inter-500-20.ttf 20 "0x20,0x25,0x43,0x48,0x52,0xB0" OFL-1.1 lv_font_inter_regular_20.c
 
-create_inter_font_instance 760 52
-ttf_to_lvgl Inter/Inter-760-52.ttf 52 "0x2D-0x2E,0x30-0x39" OFL-1.1 lv_font_inter_extrabold_52.c
+create_inter_font_instance 760 54
+ttf_to_lvgl Inter/Inter-760-54.ttf 54 "0x2D-0x2E,0x30-0x39" OFL-1.1 lv_font_inter_extrabold_54.c
 # fix a problem with missing digit and decimal point kerning data
-./patch-lvgl-kerning lv_font_inter_extrabold_52.c Inter/Inter-760-52.ttf 52
+./patch-lvgl-kerning lv_font_inter_extrabold_54.c Inter/Inter-760-54.ttf 54
 
 ttf_to_lvgl Phosphor.ttf 32 "0xE210,0xE5C6" MIT lv_font_phosphor_32.c
