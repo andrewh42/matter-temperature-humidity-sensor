@@ -1,0 +1,2 @@
+JLinkExe -device nRF5340_xxAA -if SWD -speed 4000 -autoconnect 1 -CommandFile framedump.jlink
+uv run framebuf-to-png.py framebuf.bin
