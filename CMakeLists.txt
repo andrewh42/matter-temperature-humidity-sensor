@@ -43,5 +43,12 @@ target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/lv_font_phosphor_32.c
 )
 
+if(CONFIG_DISPLAY)
+  zephyr_compile_definitions(
+    "LV_FONT_CUSTOM_DECLARE=LV_FONT_DECLARE(lv_font_inter_light_12)"
+    "LV_FONT_DEFAULT=&lv_font_inter_light_12"
+  )
+endif()
+
 ncs_configure_data_model()
 # NORDIC SDK APP END

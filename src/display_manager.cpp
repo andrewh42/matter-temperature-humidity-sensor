@@ -117,8 +117,8 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 
 	// Bottom-align aligns bounding-box bottoms, not baselines. Lift the unit
 	// label by the difference in descender space so baselines coincide.
-	int32_t baselineOffset = (int32_t)lv_font_inter_extrabold_54.base_line -
-	                         (int32_t)lv_font_inter_regular_20.base_line;
+	int32_t baselineOffset = lv_font_inter_extrabold_54.base_line -
+	                         lv_font_inter_regular_20.base_line;
 	lv_obj_set_style_pad_bottom(unitLabel, baselineOffset, 0);
 
 	return valueLabel;
@@ -167,7 +167,7 @@ CHIP_ERROR DisplayManager::Init()
 	lv_draw_buf_t *drawBuf = lv_display_get_buf_active(disp);
 	LOG_DBG("LVGL draw buf:\nsavebin framebuf.bin %p %zu\nexit", drawBuf->data, drawBuf->data_size);
 #endif
-	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_inter_extrabold_54));
+	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_inter_light_12));
 
 	lv_obj_t *screen = lv_screen_active();
 
