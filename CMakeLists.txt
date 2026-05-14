@@ -37,16 +37,15 @@ target_sources(app PRIVATE
 
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/display_manager.cpp
-  src/lv_font_inter_extrabold_54.c
-  src/lv_font_inter_light_12.c
-  src/lv_font_inter_regular_20.c
+  src/lv_font_splinesans_medium_20.c
+  src/lv_font_splinesans_bold_72.c
   src/lv_font_phosphor_32.c
 )
 
 if(CONFIG_DISPLAY)
   zephyr_compile_definitions(
-    "LV_FONT_CUSTOM_DECLARE=LV_FONT_DECLARE(lv_font_inter_light_12)"
-    "LV_FONT_DEFAULT=&lv_font_inter_light_12"
+    "LV_FONT_CUSTOM_DECLARE=LV_FONT_DECLARE(lv_font_splinesans_medium_20)"
+    "LV_FONT_DEFAULT=&lv_font_splinesans_medium_20"
   )
 endif()
 

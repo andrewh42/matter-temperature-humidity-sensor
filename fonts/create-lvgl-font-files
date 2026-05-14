@@ -1,20 +1,7 @@
 #!/bin/sh
 #
-# Convert Inter and Phosphor TTF font files to LVGL .c files.
+# Convert TTF font files to LVGL .c files.
 # Includes the font licence reference at the top of the generated files.
-
-create_inter_font_instance () (
-  weight="$1"
-  size="$2"
-
-  if [ -z "$weight" -o -z "$size" ]; then
-    echo "INTERNAL ERROR: incorrect call to create_inter_font_instance(<font size>, <font weight>)"
-    exit 1
-  fi
-
-  cd Inter
-  uvx fonttools varLib.mutator -o Inter-$weight-$size.ttf Inter-VariableFont_opsz,wght.ttf wght=$weight opsz=$size
-)
 
 ttf_to_lvgl () {
   font_file="$1"
@@ -23,8 +10,13 @@ ttf_to_lvgl () {
   licence="$4"
   lv_font_file="$5"
 
-  if [ ! -s "$font_file" -o -z "$lv_font_file" ]; then
-    echo "INTERNAL ERROR: incorrect call to ttf_to_lvgl(<font filename>, <font size>, <character range>, <SPDX licence code>, <LVGL output font file>)"
+  if [ ! -s "$font_file" ]; then
+    echo "$0: ttf_to_lvgl $font_file not found"
+    exit 1
+  fi
+
+  if [ -z "$lv_font_file" ]; then
+    echo "$0: ttf_to_lvgl $lv_font_file not specified"
     exit 1
   fi
 
@@ -45,19 +37,8 @@ ttf_to_lvgl () {
 " "$lv_font_file"
 }
 
-create_inter_font_instance 350 12
-ttf_to_lvgl Inter/Inter-350-12.ttf 12 "0x20,0x41,0x44,0x45,0x48,0x49,0x4D,0x50,0x52,0x54,0x55,0x59" OFL-1.1 lv_font_inter_light_12.c
-# Re-extract kerning straight from GPOS at higher precision and apply manual
-# overrides from lv_font_inter_light_12.kern.json (used to tighten T-pairs
-# whose 1-bpp render shows hard white columns where AA would otherwise blur).
-./patch-lvgl-kerning lv_font_inter_light_12.c Inter/Inter-350-12.ttf 12
+ttf_to_lvgl SplineSans/static/SplineSans-Medium.ttf 20 "0x20,0x25,0x43,0x48,0x52,0xB0" OFL-1.1 lv_font_splinesans_medium_20.c
 
-create_inter_font_instance 500 20
-ttf_to_lvgl Inter/Inter-500-20.ttf 20 "0x20,0x25,0x43,0x48,0x52,0xB0" OFL-1.1 lv_font_inter_regular_20.c
-
-create_inter_font_instance 760 54
-ttf_to_lvgl Inter/Inter-760-54.ttf 54 "0x2D-0x2E,0x30-0x39" OFL-1.1 lv_font_inter_extrabold_54.c
-# fix a problem with missing digit and decimal point kerning data
-./patch-lvgl-kerning lv_font_inter_extrabold_54.c Inter/Inter-760-54.ttf 54
+ttf_to_lvgl SplineSans/static/SplineSans-Bold.ttf 72 "0x2D-0x2E,0x30-0x39" OFL-1.1 lv_font_splinesans_bold_72.c
 
 ttf_to_lvgl Phosphor.ttf 32 "0xE210,0xE5C6" MIT lv_font_phosphor_32.c

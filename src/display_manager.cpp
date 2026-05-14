@@ -12,9 +12,8 @@
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
-LV_FONT_DECLARE(lv_font_inter_extrabold_54);
-LV_FONT_DECLARE(lv_font_inter_light_12);
-LV_FONT_DECLARE(lv_font_inter_regular_20);
+LV_FONT_DECLARE(lv_font_splinesans_medium_20);
+LV_FONT_DECLARE(lv_font_splinesans_bold_72);
 LV_FONT_DECLARE(lv_font_phosphor_32);
 
 // Replace with codepoints from the Phosphor lookup script.
@@ -93,11 +92,6 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 	lv_obj_set_style_pad_all(card, 0, 0);
 	lv_obj_set_style_pad_row(card, 11, 0);
 
-	lv_obj_t *titleLabel = lv_label_create(card);
-	lv_obj_set_style_text_font(titleLabel, &lv_font_inter_light_12, 0);
-	lv_obj_set_style_text_letter_space(titleLabel, 2, 0);
-	lv_label_set_text(titleLabel, title);
-
 	lv_obj_t *valueRow = lv_obj_create(card);
 	lv_obj_remove_style_all(valueRow);
 	lv_obj_set_size(valueRow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -108,17 +102,17 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 	lv_obj_set_style_pad_column(valueRow, 4, 0);
 
 	lv_obj_t *valueLabel = lv_label_create(valueRow);
-	lv_obj_set_style_text_font(valueLabel, &lv_font_inter_extrabold_54, 0);
+	lv_obj_set_style_text_font(valueLabel, &lv_font_splinesans_bold_72, 0);
 	lv_label_set_text(valueLabel, "--.-");
 
 	lv_obj_t *unitLabel = lv_label_create(valueRow);
-	lv_obj_set_style_text_font(unitLabel, &lv_font_inter_regular_20, 0);
+	lv_obj_set_style_text_font(unitLabel, &lv_font_splinesans_medium_20, 0);
 	lv_label_set_text(unitLabel, unit);
 
 	// Bottom-align aligns bounding-box bottoms, not baselines. Lift the unit
 	// label by the difference in descender space so baselines coincide.
-	int32_t baselineOffset = lv_font_inter_extrabold_54.base_line -
-	                         lv_font_inter_regular_20.base_line;
+	int32_t baselineOffset = lv_font_splinesans_bold_72.base_line -
+	                         lv_font_splinesans_medium_20.base_line;
 	lv_obj_set_style_pad_bottom(unitLabel, baselineOffset, 0);
 
 	return valueLabel;
@@ -167,7 +161,7 @@ CHIP_ERROR DisplayManager::Init()
 	lv_draw_buf_t *drawBuf = lv_display_get_buf_active(disp);
 	LOG_DBG("LVGL draw buf:\nsavebin framebuf.bin %p %zu\nexit", drawBuf->data, drawBuf->data_size);
 #endif
-	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_inter_light_12));
+	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_splinesans_medium_20));
 
 	lv_obj_t *screen = lv_screen_active();
 
@@ -176,13 +170,13 @@ CHIP_ERROR DisplayManager::Init()
 	lv_obj_remove_style_all(header);
 	lv_obj_set_size(header, 200, 24);
 	lv_obj_set_pos(header, 0, 0);
-	lv_obj_set_style_pad_right(header, 6, 0);
-	lv_obj_set_style_pad_top(header, 5, 0);
+	lv_obj_set_style_pad_right(header, 2, 0);
+	lv_obj_set_style_pad_top(header, 2, 0);
 
 	mSignalWidget = lv_obj_create(header);
 	lv_obj_remove_style_all(mSignalWidget);
-	lv_obj_set_size(mSignalWidget, 32, 16);
-	lv_obj_align(mSignalWidget, LV_ALIGN_RIGHT_MID, 0, 0);
+	lv_obj_set_size(mSignalWidget, 26, 14);
+	lv_obj_align(mSignalWidget, LV_ALIGN_TOP_RIGHT, 0, 0);
 	lv_obj_add_event_cb(mSignalWidget, SignalDrawCallback, LV_EVENT_DRAW_MAIN, this);
 
 	// Sensor container (flex column, space-evenly)
@@ -194,7 +188,7 @@ CHIP_ERROR DisplayManager::Init()
 	lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(container, LV_FLEX_ALIGN_SPACE_EVENLY,
 	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-	lv_obj_set_style_pad_left(container, 20, 0);
+	lv_obj_set_style_pad_left(container, 32, 0);
 
 	mValueTemperature = CreateSensorCard(container, "TEMPERATURE",
 	                                     "\xC2\xB0" "C");
