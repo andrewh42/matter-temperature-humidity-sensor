@@ -56,6 +56,16 @@ void AppTask::ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChan
 		Server::GetInstance().GetICDManager().OnNetworkActivity();
 	}
 #endif
+
+	if ((DK_BTN4_MSK & state & hasChanged)) {
+		Nrf::PostTask([] {
+			if (Instance().mDecontaminationActive) {
+				Instance().StopDecontamination();
+			} else {
+				Instance().StartDecontamination();
+			}
+		});
+	}
 }
 
 void AppTask::LEDStateHandler()
@@ -93,6 +103,11 @@ void AppTask::LEDStateHandler()
 void AppTask::MeasurementsTimerHandler()
 {
 	Instance().UpdateMeasurements();
+}
+
+void AppTask::DecontaminationTimerHandler()
+{
+	Instance().RunDecontaminationCycle();
 }
 
 #ifdef CONFIG_DISPLAY
@@ -192,6 +207,10 @@ tl::expected<std::tuple<int16_t, uint16_t>, int> AppTask::ReadSensor()
 
 void AppTask::UpdateMeasurements()
 {
+	if (mDecontaminationActive) {
+		return;
+	}
+
 #ifndef CONFIG_DISPLAY
 	Nrf::LEDWidget &clusterUpdateLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED3);
 	clusterUpdateLED.Set(true);
@@ -234,6 +253,104 @@ void AppTask::UpdateMeasurements()
 #else
 	clusterUpdateLED.Set(false);
 #endif
+}
+
+void AppTask::StartDecontamination()
+{
+	if (mDecontaminationActive) {
+		return;
+	}
+
+	k_timer_stop(&sMeasurementsTimer);
+
+	const struct sensor_value heaterLevel = {.val1 = kDecontaminationHeaterLevel, .val2 = 0};
+	const int heaterResult = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
+	                                         (enum sensor_attribute)SENSOR_ATTR_HEATER_LEVEL,
+	                                         &heaterLevel);
+	if (heaterResult != 0) {
+		LOG_ERR("Failed to enable HDC302x heater: %d", heaterResult);
+	}
+
+	mDecontaminationStartUptimeMs = k_uptime_get();
+	mDecontaminationActive        = true;
+
+	k_timer_start(&sDecontaminationTimer, K_MSEC(kDecontaminationIntervalMs),
+	              K_MSEC(kDecontaminationIntervalMs));
+
+	Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4).Blink(kDecontaminationLedOnMs,
+	                                                   kDecontaminationIntervalMs - kDecontaminationLedOnMs);
+
+#ifdef CONFIG_DISPLAY
+	DisplayManager::Instance().SetDecontaminationStatus(true, 0);
+	DisplayManager::Instance().RefreshDisplay();
+#endif
+
+	LOG_INF("Decontamination started (heater level %d)", kDecontaminationHeaterLevel);
+}
+
+void AppTask::StopDecontamination()
+{
+	if (!mDecontaminationActive) {
+		return;
+	}
+
+	k_timer_stop(&sDecontaminationTimer);
+
+	const struct sensor_value heaterLevel = {.val1 = kHeaterLevelOff, .val2 = 0};
+	const int heaterResult = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
+	                                         (enum sensor_attribute)SENSOR_ATTR_HEATER_LEVEL,
+	                                         &heaterLevel);
+	if (heaterResult != 0) {
+		LOG_ERR("Failed to disable HDC302x heater: %d", heaterResult);
+	}
+
+	mDecontaminationActive = false;
+
+	Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4).Set(false);
+
+#ifdef CONFIG_DISPLAY
+	DisplayManager::Instance().SetDecontaminationStatus(false, 0);
+	DisplayManager::Instance().RefreshDisplay();
+#endif
+
+	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsIntervalMs),
+	              K_MSEC(kMeasurementsIntervalMs));
+
+	LOG_INF("Decontamination stopped");
+}
+
+void AppTask::RunDecontaminationCycle()
+{
+	if (!mDecontaminationActive) {
+		return;
+	}
+
+	auto sensorResult = ReadSensor();
+	if (!sensorResult) {
+		LOG_ERR("Decon: failed to read sensor: %d", sensorResult.error());
+		return;
+	}
+
+	auto [temperatureHundredths, humidityHundredths] = sensorResult.value();
+	const int64_t elapsedMs = k_uptime_get() - mDecontaminationStartUptimeMs;
+
+	LOG_DBG("Decon t=%lld.%03llds  T=%d.%02dC  RH=%u.%02u%%",
+	        elapsedMs / 1000, elapsedMs % 1000,
+	        temperatureHundredths / 100, temperatureHundredths % 100,
+	        humidityHundredths / 100, humidityHundredths % 100);
+
+#ifdef CONFIG_DISPLAY
+	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
+	DisplayManager::Instance().SetDecontaminationStatus(true, static_cast<uint32_t>(elapsedMs / 1000));
+	DisplayManager::Instance().RefreshDisplay();
+#endif
+
+	const bool humidityValid =
+		humidityHundredths != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue);
+	if (elapsedMs >= kDecontaminationMaxDurationMs ||
+	    (humidityValid && humidityHundredths < kDecontaminationHumidityExitHundredths)) {
+		StopDecontamination();
+	}
 }
 
 CHIP_ERROR AppTask::Init()
@@ -312,6 +429,9 @@ CHIP_ERROR AppTask::StartApp()
 	k_timer_init(
 		&sMeasurementsTimer, [](k_timer *) { Nrf::PostTask([] { MeasurementsTimerHandler(); }); }, nullptr);
 	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsInitialMs), K_MSEC(kMeasurementsIntervalMs));
+
+	k_timer_init(
+		&sDecontaminationTimer, [](k_timer *) { Nrf::PostTask([] { DecontaminationTimerHandler(); }); }, nullptr);
 
 	while (true) {
 		Nrf::DispatchNextTask();

@@ -179,6 +179,12 @@ CHIP_ERROR DisplayManager::Init()
 	lv_obj_align(mSignalWidget, LV_ALIGN_TOP_RIGHT, 0, 0);
 	lv_obj_add_event_cb(mSignalWidget, SignalDrawCallback, LV_EVENT_DRAW_MAIN, this);
 
+	mDecontaminationLabel = lv_label_create(header);
+	lv_obj_set_style_text_font(mDecontaminationLabel, &lv_font_splinesans_medium_20, 0);
+	lv_obj_align(mDecontaminationLabel, LV_ALIGN_TOP_LEFT, 4, 0);
+	lv_label_set_text(mDecontaminationLabel, "");
+	lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
+
 	// Sensor container (flex column, space-evenly)
 	lv_obj_t *container = lv_obj_create(screen);
 	lv_obj_remove_style_all(container);
@@ -229,6 +235,12 @@ void DisplayManager::UpdateSignalStrength(bool connected, uint8_t lqi)
 	mCurrentLqi       = lqi;
 }
 
+void DisplayManager::SetDecontaminationStatus(bool active, uint32_t elapsedSeconds)
+{
+	mCurrentDecontaminationActive         = active;
+	mCurrentDecontaminationElapsedSeconds = elapsedSeconds;
+}
+
 // ---------------------------------------------------------------------------
 // Refresh
 // ---------------------------------------------------------------------------
@@ -238,10 +250,12 @@ void DisplayManager::RefreshDisplay()
 	if (!mInitialized) {
 		return;
 	}
-	if (mCurrentTemperature == mLastTemperature &&
-	    mCurrentHumidity    == mLastHumidity    &&
-	    mCurrentConnected   == mLastConnected   &&
-	    mCurrentLqi         == mLastLqi) {
+	if (mCurrentTemperature                   == mLastTemperature                   &&
+	    mCurrentHumidity                      == mLastHumidity                      &&
+	    mCurrentConnected                     == mLastConnected                     &&
+	    mCurrentLqi                           == mLastLqi                           &&
+	    mCurrentDecontaminationActive         == mLastDecontaminationActive         &&
+	    mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds) {
 		return;
 	}
 
@@ -254,16 +268,19 @@ void DisplayManager::RefreshDisplay()
 
 	DrawMeasurements();
 	DrawSignalBars();
+	DrawDecontamination();
 	lv_timer_handler();
 
 	if (fullUpdate) {
 		display_blanking_off(mDev);
 	}
 
-	mLastTemperature = mCurrentTemperature;
-	mLastHumidity    = mCurrentHumidity;
-	mLastConnected   = mCurrentConnected;
-	mLastLqi         = mCurrentLqi;
+	mLastTemperature                   = mCurrentTemperature;
+	mLastHumidity                      = mCurrentHumidity;
+	mLastConnected                     = mCurrentConnected;
+	mLastLqi                           = mCurrentLqi;
+	mLastDecontaminationActive         = mCurrentDecontaminationActive;
+	mLastDecontaminationElapsedSeconds = mCurrentDecontaminationElapsedSeconds;
 }
 
 void DisplayManager::DrawMeasurements()
@@ -285,6 +302,18 @@ void DisplayManager::DrawMeasurements()
 void DisplayManager::DrawSignalBars()
 {
 	lv_obj_invalidate(mSignalWidget);
+}
+
+void DisplayManager::DrawDecontamination()
+{
+	if (!mCurrentDecontaminationActive) {
+		lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
+		return;
+	}
+	lv_obj_remove_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
+	uint32_t mins = mCurrentDecontaminationElapsedSeconds / 60;
+	uint32_t secs = mCurrentDecontaminationElapsedSeconds % 60;
+	lv_label_set_text_fmt(mDecontaminationLabel, "DECON %u:%02u", mins, secs);
 }
 
 #endif /* CONFIG_DISPLAY */

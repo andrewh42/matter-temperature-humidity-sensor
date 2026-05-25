@@ -35,9 +35,20 @@ public:
 private:
 	CHIP_ERROR Init();
 	k_timer sMeasurementsTimer;
+	k_timer sDecontaminationTimer;
 
 	static constexpr uint32_t kMeasurementsInitialMs = 5'000;
 	static constexpr uint32_t kMeasurementsIntervalMs = 60'000;
+
+	static constexpr uint32_t kDecontaminationIntervalMs             = 2'000;
+	static constexpr uint32_t kDecontaminationLedOnMs                = 50;
+	static constexpr uint32_t kDecontaminationMaxDurationMs          = 5 * 60 * 1000;
+	static constexpr uint16_t kDecontaminationHumidityExitHundredths = 100; // 1.00%
+	static constexpr int32_t  kDecontaminationHeaterLevel            = 14;  // 100% of maximum
+	static constexpr int32_t  kHeaterLevelOff                        = 0;
+
+	bool    mDecontaminationActive        = false;
+	int64_t mDecontaminationStartUptimeMs = 0;
 
 	CHIP_ERROR ConfigureMeasurementValidityRanges();
 	int16_t mTemperatureMeasurementAttributeMinValue = 0;
@@ -52,7 +63,12 @@ private:
 	void UpdateTemperatureClusterState(int16_t temperatureHundredths);
 	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 
+	void StartDecontamination();
+	void StopDecontamination();
+	void RunDecontaminationCycle();
+
 	static void MeasurementsTimerHandler();
+	static void DecontaminationTimerHandler();
 
 #ifdef CONFIG_DISPLAY
 	std::tuple<bool, uint8_t> GetThreadConnectivity();
