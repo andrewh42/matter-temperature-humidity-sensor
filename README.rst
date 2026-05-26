@@ -64,9 +64,14 @@ Open this repo in Visual Studio Code and follow these steps:
 
 3. Create a build configuration and build the temperature sensor software.
 
-    For the Nordic nRF5340 DK (with e-paper display enabled):
+    For the Nordic nRF5340 DK (with HDC302x and e-paper display enabled):
     ```sh
-    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app.overlay;epaper.overlay"
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="app-hdc302x.conf;epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;epaper.overlay"
+    ```
+
+    For the Nordic nRF5340 DK (with SHT4x and e-paper display enabled):
+    ```sh
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-sht4x.overlay;epaper.overlay"
     ```
 
     For the Seeed XIAO nRF54L15:

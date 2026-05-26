@@ -1,0 +1,8 @@
+
+&i2c1 {
+    sht4x@44 {
+        compatible = "sensirion,sht4x";
+        reg = <0x44>;
+        repeatability = <2>; /* 2 = high */
+    };
+};
