@@ -13,7 +13,6 @@
 
 #include <platform/CHIPDeviceLayer.h>
 #include <tuple>
-#include <tl/expected.hpp>
 
 #ifdef CONFIG_DISPLAY
 #include <openthread/link.h>
@@ -61,13 +60,6 @@ private:
 	Sensor *mPrimarySensor   = nullptr;
 	Sensor *mSecondarySensor = nullptr;
 
-	struct SensorReadings {
-		int16_t temperature;
-		uint16_t humidity;
-	};
-
-	tl::expected<SensorReadings, int> ReadSensor(const Sensor &sensor);
-	SensorReadings Smooth(Sensor &sensor, SensorReadings raw);
 	void UpdateTemperatureClusterState(int16_t temperatureHundredths);
 	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 

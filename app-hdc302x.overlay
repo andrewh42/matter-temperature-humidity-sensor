@@ -1,6 +1,6 @@
 
 &i2c1 {
-    clock-frequency = <I2C_BITRATE_FAST_PLUS>; 
+    clock-frequency = <I2C_BITRATE_FAST>;
 
     hdc302x@44 {
         compatible = "ti,hdc302x";

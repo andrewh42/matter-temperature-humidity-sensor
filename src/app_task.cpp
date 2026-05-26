@@ -36,9 +36,6 @@ namespace
 constexpr chip::EndpointId kTemperatureSensorEndpointId = 1;
 constexpr chip::EndpointId kHumiditySensorEndpointId = 2;
 
-constexpr int16_t  kTemperatureMeasurementAttributeInvalidValue = 0x8000;
-constexpr uint16_t kHumidityMeasurementAttributeInvalidValue    = 0xffff;
-
 #ifdef CONFIG_DT_HAS_TI_HDC302X_ENABLED
 const device *sHdc302xSensorDev = DEVICE_DT_GET_ONE(ti_hdc302x);
 #else
@@ -185,7 +182,7 @@ void AppTask::UpdateTemperatureClusterState(int16_t newValue)
 	if (newValue > mTemperatureMeasurementAttributeMaxValue ||
 		newValue < mTemperatureMeasurementAttributeMinValue) {
 		/* Read value exceeds permitted limits, so assign invalid value code to it. */
-		newValue = kTemperatureMeasurementAttributeInvalidValue;
+		newValue = Sensor::kTemperatureInvalid;
 	}
 
 	Protocols::InteractionModel::Status status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
@@ -200,7 +197,7 @@ void AppTask::UpdateRelativeHumidityClusterState(uint16_t newValue)
 	if (newValue > mHumidityMeasurementAttributeMaxValue ||
 		newValue < mHumidityMeasurementAttributeMinValue) {
 		/* Read value exceeds permitted limits, so assign invalid value code to it. */
-		newValue = kHumidityMeasurementAttributeInvalidValue;
+		newValue = Sensor::kHumidityInvalid;
 	}
 
 	Protocols::InteractionModel::Status status = Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Set(
@@ -208,57 +205,6 @@ void AppTask::UpdateRelativeHumidityClusterState(uint16_t newValue)
 	if (status != Protocols::InteractionModel::Status::Success) {
 		LOG_ERR("Updating relative humidity measurement %x", to_underlying(status));
 	}
-}
-
-tl::expected<AppTask::SensorReadings, int> AppTask::ReadSensor(const Sensor &sensor)
-{
-	const int result = sensor_sample_fetch(sensor.dev);
-	if (result != 0) {
-		Nrf::LEDWidget &sampleFailedLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4);
-		sampleFailedLED.Set(true);
-		LOG_ERR("Fetching data from %s sensor failed with: %d", sensor.name, result);
-		sampleFailedLED.Set(false);
-		return tl::unexpected(result);
-	}
-
-	struct sensor_value sTemperature;
-	int16_t temperatureHundredths;
-	const int temp_result = sensor_channel_get(sensor.dev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
-	if (temp_result == 0) {
-		LOG_DBG("New %s temperature measurement %d.%06d C", sensor.name, sTemperature.val1, sTemperature.val2);
-		temperatureHundredths = static_cast<int16_t>(sTemperature.val1 * 100 + sTemperature.val2 / 10000);
-	} else {
-		LOG_ERR("Getting temperature measurement data from %s failed with: %d", sensor.name, temp_result);
-		temperatureHundredths = kTemperatureMeasurementAttributeInvalidValue;
-	}
-
-	struct sensor_value sHumidity;
-	uint16_t humidityHundredths;
-	const int humidity_result = sensor_channel_get(sensor.dev, SENSOR_CHAN_HUMIDITY, &sHumidity);
-	if (humidity_result == 0) {
-		LOG_DBG("New %s relative humidity measurement %d.%06d%%", sensor.name, sHumidity.val1, sHumidity.val2);
-		humidityHundredths = static_cast<int16_t>(sHumidity.val1 * 100 + sHumidity.val2 / 10000);
-	} else {
-		LOG_ERR("Getting humidity measurement data from %s failed with: %d", sensor.name, humidity_result);
-		humidityHundredths = kHumidityMeasurementAttributeInvalidValue;
-	}
-
-	return SensorReadings{temperatureHundredths, humidityHundredths};
-}
-
-AppTask::SensorReadings AppTask::Smooth(Sensor &sensor, SensorReadings raw)
-{
-	auto [rawTemperatureHundredths, rawHumidityHundredths] = raw;
-	const int16_t smoothedTemperature =
-		(rawTemperatureHundredths != kTemperatureMeasurementAttributeInvalidValue)
-			? sensor.temperatureAverage.update(rawTemperatureHundredths)
-			: rawTemperatureHundredths;
-	const uint16_t smoothedHumidity =
-		(rawHumidityHundredths != kHumidityMeasurementAttributeInvalidValue)
-			? sensor.humidityAverage.update(rawHumidityHundredths)
-			: rawHumidityHundredths;
-
-	return {smoothedTemperature, smoothedHumidity};
 }
 
 void AppTask::UpdateMeasurements()
@@ -272,7 +218,7 @@ void AppTask::UpdateMeasurements()
 	clusterUpdateLED.Set(true);
 #endif
 
-	auto primaryResult = ReadSensor(*mPrimarySensor);
+	auto primaryResult = mPrimarySensor->Read();
 	if (!primaryResult) {
 		LOG_ERR("Failed to read primary sensor data: %d", primaryResult.error());
 #ifndef CONFIG_DISPLAY
@@ -280,15 +226,15 @@ void AppTask::UpdateMeasurements()
 #endif
 		return;
 	}
-	auto [primaryTemp, primaryHum] = Smooth(*mPrimarySensor, primaryResult.value());
+	auto [primaryTemperature, primaryHumidity] = primaryResult.value();
 
-	uint16_t secondaryHum = kHumidityMeasurementAttributeInvalidValue;
+	uint16_t secondaryHumidity = Sensor::kHumidityInvalid;
 	const char *secondaryName = nullptr;
 	if (mSecondarySensor != nullptr) {
 		secondaryName = mSecondarySensor->name;
-		auto secondaryResult = ReadSensor(*mSecondarySensor);
+		auto secondaryResult = mSecondarySensor->Read();
 		if (secondaryResult) {
-			secondaryHum = Smooth(*mSecondarySensor, secondaryResult.value()).humidity;
+			secondaryHumidity = secondaryResult.value().humidity;
 		} else {
 			LOG_WRN("Failed to read secondary sensor data: %d", secondaryResult.error());
 		}
@@ -296,33 +242,27 @@ void AppTask::UpdateMeasurements()
 
 	if (mCalibrationRequested) {
 		mCalibrationRequested = false;
-		const bool sht4xPrimary     = (mPrimarySensor == &mSht4xSensor);
-		const bool hdc302xAvailable = mHdc302xSensor.IsAvailable();
-		const bool readingsValid =
-			primaryHum   != kHumidityMeasurementAttributeInvalidValue &&
-			secondaryHum != kHumidityMeasurementAttributeInvalidValue;
-		if (!sht4xPrimary || !hdc302xAvailable) {
+		const bool sht4xPrimary = (mPrimarySensor == &mSht4xSensor);
+		if (!sht4xPrimary || !mHdc302xSensor.IsAvailable()) {
 			LOG_WRN("Humidity calibration requires SHT4x primary and HDC302x present; skipped");
-		} else if (!readingsValid) {
-			LOG_WRN("Humidity calibration skipped: smoothed reading unavailable");
 		} else {
-			// primaryHum = SHT4x smoothed; secondaryHum = HDC302x smoothed (since SHT4x is primary).
-			if (mHumidityCalibrator.Apply(primaryHum, secondaryHum)) {
+			// primaryHumidity = SHT4x smoothed; secondaryHumidity = HDC302x smoothed (since SHT4x is primary).
+			if (mHumidityCalibrator.Apply(primaryHumidity, secondaryHumidity)) {
 				mHdc302xSensor.humidityAverage.reset();
 			}
 		}
 	}
 
-	UpdateTemperatureClusterState(primaryTemp);
-	UpdateRelativeHumidityClusterState(primaryHum);
+	UpdateTemperatureClusterState(primaryTemperature);
+	UpdateRelativeHumidityClusterState(primaryHumidity);
 
 #ifdef CONFIG_DISPLAY
 	auto [connected, lqi] = GetThreadConnectivity();
 	LOG_DBG("Thread connectivity: %s, LQI: %d", connected ? "connected" : "not connected", lqi);
 	DisplayManager::Instance().UpdateSignalStrength(connected, lqi);
 
-	DisplayManager::Instance().UpdateMeasurements(primaryTemp, primaryHum);
-	DisplayManager::Instance().SetSensorInfo(secondaryName, secondaryHum);
+	DisplayManager::Instance().UpdateMeasurements(primaryTemperature, primaryHumidity);
+	DisplayManager::Instance().SetSensorInfo(secondaryName, secondaryHumidity);
 	DisplayManager::Instance().RefreshDisplay();
 #else
 	clusterUpdateLED.Set(false);

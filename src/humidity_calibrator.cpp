@@ -3,6 +3,7 @@
  */
 
 #include "humidity_calibrator.h"
+#include "sensor.h"
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ti_hdc302x.h>
@@ -68,6 +69,11 @@ int AbsoluteHundredths(int32_t value)
 bool HumidityCalibrator::Apply(uint16_t referenceHundredths, uint16_t targetHundredths)
 {
 	if (mDevice == nullptr) {
+		return false;
+	}
+
+	if (referenceHundredths == Sensor::kHumidityInvalid || targetHundredths == Sensor::kHumidityInvalid) {
+		LOG_WRN("Humidity calibration skipped: readings unavailable");
 		return false;
 	}
 

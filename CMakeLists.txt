@@ -35,6 +35,7 @@ target_sources(app PRIVATE
   src/decontamination_controller.cpp
   src/humidity_calibrator.cpp
   src/main.cpp
+  src/sensor.cpp
 )
 
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
