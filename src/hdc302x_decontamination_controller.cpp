@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: LicenseRef-Apache-2.0
  */
 
-#include "decontamination_controller.h"
+#include "hdc302x_decontamination_controller.h"
 
 #include "app/task_executor.h"
 #include "board/board.h"
@@ -23,10 +23,10 @@ constexpr int16_t  kTemperatureInvalidSentinel = 0x8000;
 constexpr uint16_t kHumidityInvalidSentinel    = 0xffff;
 } /* namespace */
 
-void DecontaminationController::Init(const device *hdc302xDevice,
-                                     Callback onStarted,
-                                     Callback onStopped,
-                                     void *callbackContext)
+void HDC302xDecontaminationController::Init(const device *hdc302xDevice,
+                                            Callback onStarted,
+                                            Callback onStopped,
+                                            void *callbackContext)
 {
 	mDevice          = hdc302xDevice;
 	mOnStarted       = onStarted;
@@ -37,14 +37,14 @@ void DecontaminationController::Init(const device *hdc302xDevice,
 		&mTimer,
 		[](k_timer *timer) {
 			auto *self =
-				static_cast<DecontaminationController *>(k_timer_user_data_get(timer));
+				static_cast<HDC302xDecontaminationController *>(k_timer_user_data_get(timer));
 			Nrf::PostTask([self] { self->RunCycle(); });
 		},
 		nullptr);
 	k_timer_user_data_set(&mTimer, this);
 }
 
-void DecontaminationController::Toggle()
+void HDC302xDecontaminationController::Toggle()
 {
 	if (mActive) {
 		Stop();
@@ -53,7 +53,7 @@ void DecontaminationController::Toggle()
 	}
 }
 
-void DecontaminationController::SetHeater(int32_t level)
+void HDC302xDecontaminationController::SetHeater(int32_t level)
 {
 	if (mDevice == nullptr) {
 		return;
@@ -68,7 +68,7 @@ void DecontaminationController::SetHeater(int32_t level)
 	}
 }
 
-void DecontaminationController::Start()
+void HDC302xDecontaminationController::Start()
 {
 	if (mActive) {
 		return;
@@ -99,7 +99,7 @@ void DecontaminationController::Start()
 	LOG_INF("Decontamination started (heater level %d)", kHeaterLevel);
 }
 
-void DecontaminationController::Stop()
+void HDC302xDecontaminationController::Stop()
 {
 	if (!mActive) {
 		return;
@@ -125,7 +125,7 @@ void DecontaminationController::Stop()
 	LOG_INF("Decontamination stopped");
 }
 
-void DecontaminationController::RunCycle()
+void HDC302xDecontaminationController::RunCycle()
 {
 	if (!mActive) {
 		return;

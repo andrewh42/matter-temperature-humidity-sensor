@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: LicenseRef-Apache-2.0
  */
 
-#include "humidity_calibrator.h"
+#include "hdc302x_humidity_calibrator.h"
 #include "sensor.h"
 
 #include <zephyr/drivers/sensor.h>
@@ -66,7 +66,7 @@ int AbsoluteHundredths(int32_t value)
 }
 } /* namespace */
 
-bool HumidityCalibrator::Apply(uint16_t referenceHundredths, uint16_t targetHundredths)
+bool HDC302xHumidityCalibrator::Apply(uint16_t referenceHundredths, uint16_t targetHundredths)
 {
 	if (mDevice == nullptr) {
 		return false;

@@ -14,9 +14,9 @@ struct device;
 /// into manual-measurement mode before the EEPROM can be written; that mode
 /// transition is handled internally via RAII so callers cannot leave the
 /// sensor stuck in manual mode by skipping the restore step.
-class HumidityCalibrator {
+class HDC302xHumidityCalibrator {
 public:
-	HumidityCalibrator() = default;
+	HDC302xHumidityCalibrator() = default;
 
 	void Init(const device *hdc302xDevice) { mDevice = hdc302xDevice; }
 

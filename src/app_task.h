@@ -7,8 +7,8 @@
 #pragma once
 
 #include "board/board.h"
-#include "decontamination_controller.h"
-#include "humidity_calibrator.h"
+#include "hdc302x_decontamination_controller.h"
+#include "hdc302x_humidity_calibrator.h"
 #include "sensor.h"
 
 #include <platform/CHIPDeviceLayer.h>
@@ -40,7 +40,7 @@ private:
 	static constexpr uint32_t kMeasurementsInitialMs = 5'000;
 	static constexpr uint32_t kMeasurementsIntervalMs = 60'000;
 
-	DecontaminationController mDecontaminationController;
+	HDC302xDecontaminationController mDecontaminationController;
 	void HandleDecontaminationButton();
 	void OnDecontaminationStarted();
 	void OnDecontaminationStopped();
@@ -66,7 +66,7 @@ private:
 	void TogglePrimarySensor();
 
 	void RequestHumidityCalibration();
-	HumidityCalibrator mHumidityCalibrator;
+	HDC302xHumidityCalibrator mHumidityCalibrator;
 
 	CHIP_ERROR ConfigureHdc302xDefaults();
 

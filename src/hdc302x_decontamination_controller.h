@@ -13,13 +13,13 @@ struct device;
 /// minutes (or until humidity drops below 1%) to drive out absorbed moisture.
 /// While active, the host's normal measurement cadence is paused via the
 /// supplied callbacks so the heater readings do not pollute the Matter cluster.
-class DecontaminationController {
+class HDC302xDecontaminationController {
 public:
 	using Callback = void (*)(void *context);
 
-	DecontaminationController() = default;
-	DecontaminationController(const DecontaminationController &) = delete;
-	DecontaminationController &operator=(const DecontaminationController &) = delete;
+	HDC302xDecontaminationController() = default;
+	HDC302xDecontaminationController(const HDC302xDecontaminationController &) = delete;
+	HDC302xDecontaminationController &operator=(const HDC302xDecontaminationController &) = delete;
 
 	void Init(const device *hdc302xDevice,
 	          Callback onStarted,
