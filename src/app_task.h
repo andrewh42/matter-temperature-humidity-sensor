@@ -7,7 +7,9 @@
 #pragma once
 
 #include "board/board.h"
-#include "moving_average.h"
+#include "decontamination_controller.h"
+#include "humidity_calibrator.h"
+#include "sensor.h"
 
 #include <platform/CHIPDeviceLayer.h>
 #include <tuple>
@@ -35,20 +37,16 @@ public:
 private:
 	CHIP_ERROR Init();
 	k_timer sMeasurementsTimer;
-	k_timer sDecontaminationTimer;
 
 	static constexpr uint32_t kMeasurementsInitialMs = 5'000;
 	static constexpr uint32_t kMeasurementsIntervalMs = 60'000;
 
-	static constexpr uint32_t kDecontaminationIntervalMs             = 2'000;
-	static constexpr uint32_t kDecontaminationLedOnMs                = 50;
-	static constexpr uint32_t kDecontaminationMaxDurationMs          = 5 * 60 * 1000;
-	static constexpr uint16_t kDecontaminationHumidityExitHundredths = 100; // 1.00%
-	static constexpr int32_t  kDecontaminationHeaterLevel            = 14;  // 100% of maximum
-	static constexpr int32_t  kHeaterLevelOff                        = 0;
-
-	bool    mDecontaminationActive        = false;
-	int64_t mDecontaminationStartUptimeMs = 0;
+	DecontaminationController mDecontaminationController;
+	void HandleDecontaminationButton();
+	void OnDecontaminationStarted();
+	void OnDecontaminationStopped();
+	static void DecontaminationStartedCallback(void *context);
+	static void DecontaminationStoppedCallback(void *context);
 
 	bool    mCalibrationRequested        = false;
 
@@ -58,27 +56,29 @@ private:
 	uint16_t mHumidityMeasurementAttributeMinValue = 0;
 	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
 
-	MovingAverage<int16_t>  mHdc302xTemperatureMovingAverage{ 20 }; // alpha = 20/32 = 0.625
-	MovingAverage<uint16_t> mHdc302xHumidityMovingAverage   { 20 };
-	MovingAverage<int16_t>  mSht4xTemperatureMovingAverage  { 20 };
-	MovingAverage<uint16_t> mSht4xHumidityMovingAverage     { 20 };
+	Sensor  mHdc302xSensor;
+	Sensor  mSht4xSensor;
+	Sensor *mPrimarySensor   = nullptr;
+	Sensor *mSecondarySensor = nullptr;
 
-	tl::expected<std::tuple<int16_t, uint16_t>, int> ReadSensor(const device *dev, const char *name);
+	struct SensorReadings {
+		int16_t temperature;
+		uint16_t humidity;
+	};
+
+	tl::expected<SensorReadings, int> ReadSensor(const Sensor &sensor);
+	SensorReadings Smooth(Sensor &sensor, SensorReadings raw);
 	void UpdateTemperatureClusterState(int16_t temperatureHundredths);
 	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 
-	void ToggleActiveSensor();
+	void TogglePrimarySensor();
 
 	void RequestHumidityCalibration();
-	void WriteHumidityCalibrationOffset(uint16_t sht4xSmoothedHundredths,
-	                                    uint16_t hdc302xSmoothedHundredths);
+	HumidityCalibrator mHumidityCalibrator;
 
-	void StartDecontamination();
-	void StopDecontamination();
-	void RunDecontaminationCycle();
+	CHIP_ERROR ConfigureHdc302xDefaults();
 
 	static void MeasurementsTimerHandler();
-	static void DecontaminationTimerHandler();
 
 #ifdef CONFIG_DISPLAY
 	std::tuple<bool, uint8_t> GetThreadConnectivity();

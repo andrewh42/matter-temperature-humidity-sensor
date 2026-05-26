@@ -185,10 +185,10 @@ CHIP_ERROR DisplayManager::Init()
 	lv_label_set_text(mDecontaminationLabel, "");
 	lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
 
-	mInactiveDeltaLabel = lv_label_create(header);
-	lv_obj_set_style_text_font(mInactiveDeltaLabel, &lv_font_splinesans_medium_20, 0);
-	lv_obj_align(mInactiveDeltaLabel, LV_ALIGN_TOP_LEFT, 4, 0);
-	lv_label_set_text(mInactiveDeltaLabel, "");
+	mSecondaryDeltaLabel = lv_label_create(header);
+	lv_obj_set_style_text_font(mSecondaryDeltaLabel, &lv_font_splinesans_medium_20, 0);
+	lv_obj_align(mSecondaryDeltaLabel, LV_ALIGN_TOP_LEFT, 4, 0);
+	lv_label_set_text(mSecondaryDeltaLabel, "");
 
 	// Sensor container (flex column, space-evenly)
 	lv_obj_t *container = lv_obj_create(screen);
@@ -246,11 +246,11 @@ void DisplayManager::SetDecontaminationStatus(bool active, uint32_t elapsedSecon
 	mCurrentDecontaminationElapsedSeconds = elapsedSeconds;
 }
 
-void DisplayManager::SetSensorInfo(const char *inactiveName,
-                                    uint16_t inactiveHumidityHundredths)
+void DisplayManager::SetSensorInfo(const char *secondaryName,
+                                    uint16_t secondaryHumidityHundredths)
 {
-	mCurrentInactiveSensorName = inactiveName;
-	mCurrentInactiveHumidity   = inactiveHumidityHundredths;
+	mCurrentSecondarySensorName = secondaryName;
+	mCurrentSecondaryHumidity   = secondaryHumidityHundredths;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,8 +268,8 @@ void DisplayManager::RefreshDisplay()
 	    mCurrentLqi                           == mLastLqi                           &&
 	    mCurrentDecontaminationActive         == mLastDecontaminationActive         &&
 	    mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds &&
-	    mCurrentInactiveSensorName            == mLastInactiveSensorName            &&
-	    mCurrentInactiveHumidity              == mLastInactiveHumidity) {
+	    mCurrentSecondarySensorName            == mLastSecondarySensorName            &&
+	    mCurrentSecondaryHumidity              == mLastSecondaryHumidity) {
 		return;
 	}
 
@@ -296,8 +296,8 @@ void DisplayManager::RefreshDisplay()
 	mLastLqi                           = mCurrentLqi;
 	mLastDecontaminationActive         = mCurrentDecontaminationActive;
 	mLastDecontaminationElapsedSeconds = mCurrentDecontaminationElapsedSeconds;
-	mLastInactiveSensorName            = mCurrentInactiveSensorName;
-	mLastInactiveHumidity              = mCurrentInactiveHumidity;
+	mLastSecondarySensorName            = mCurrentSecondarySensorName;
+	mLastSecondaryHumidity              = mCurrentSecondaryHumidity;
 }
 
 void DisplayManager::DrawMeasurements()
@@ -324,27 +324,27 @@ void DisplayManager::DrawSignalBars()
 void DisplayManager::DrawSensorInfo()
 {
 	if (mCurrentDecontaminationActive) {
-		lv_obj_add_flag(mInactiveDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_add_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);
 		return;
 	}
 
-	const bool inactiveValid =
-		mCurrentInactiveSensorName != nullptr &&
-		mCurrentInactiveHumidity   != UINT16_MAX &&
-		mCurrentHumidity           != UINT16_MAX;
-	if (inactiveValid) {
-		int32_t diff = static_cast<int32_t>(mCurrentInactiveHumidity) -
+	const bool secondaryValid =
+		mCurrentSecondarySensorName != nullptr &&
+		mCurrentSecondaryHumidity   != UINT16_MAX &&
+		mCurrentHumidity            != UINT16_MAX;
+	if (secondaryValid) {
+		int32_t diff = static_cast<int32_t>(mCurrentSecondaryHumidity) -
 		               static_cast<int32_t>(mCurrentHumidity);
 		int32_t deltaTenths = (diff >= 0) ? (diff + 5) / 10 : (diff - 5) / 10;
 		int32_t absTenths = (deltaTenths < 0) ? -deltaTenths : deltaTenths;
-		lv_obj_remove_flag(mInactiveDeltaLabel, LV_OBJ_FLAG_HIDDEN);
-		lv_label_set_text_fmt(mInactiveDeltaLabel, "%s %s%d.%01d",
-		                      mCurrentInactiveSensorName,
+		lv_obj_remove_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+		lv_label_set_text_fmt(mSecondaryDeltaLabel, "%s %s%d.%01d",
+		                      mCurrentSecondarySensorName,
 		                      (deltaTenths < 0) ? "-" : "+",
 		                      static_cast<int>(absTenths / 10),
 		                      static_cast<int>(absTenths % 10));
 	} else {
-		lv_obj_add_flag(mInactiveDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_add_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);
 	}
 }
 

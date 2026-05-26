@@ -32,6 +32,8 @@ target_include_directories(app PRIVATE
 
 target_sources(app PRIVATE
   src/app_task.cpp
+  src/decontamination_controller.cpp
+  src/humidity_calibrator.cpp
   src/main.cpp
 )
 

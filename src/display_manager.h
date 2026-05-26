@@ -22,7 +22,7 @@ public:
 	void UpdateMeasurements(int16_t temperatureHundredths, uint16_t humidityHundredths);
 	void UpdateSignalStrength(bool connected, uint8_t lqi);
 	void SetDecontaminationStatus(bool active, uint32_t elapsedSeconds);
-	void SetSensorInfo(const char *inactiveName, uint16_t inactiveHumidityHundredths);
+	void SetSensorInfo(const char *secondaryName, uint16_t secondaryHumidityHundredths);
 	void RefreshDisplay();
 
 private:
@@ -48,8 +48,8 @@ private:
 	uint8_t     mCurrentLqi                           = 0;
 	bool        mCurrentDecontaminationActive         = false;
 	uint32_t    mCurrentDecontaminationElapsedSeconds = 0;
-	const char *mCurrentInactiveSensorName            = nullptr;
-	uint16_t    mCurrentInactiveHumidity              = UINT16_MAX;
+	const char *mCurrentSecondarySensorName           = nullptr;
+	uint16_t    mCurrentSecondaryHumidity             = UINT16_MAX;
 
 	int16_t     mLastTemperature                   = INT16_MIN;
 	uint16_t    mLastHumidity                      = UINT16_MAX;
@@ -57,14 +57,14 @@ private:
 	uint8_t     mLastLqi                           = UINT8_MAX;
 	bool        mLastDecontaminationActive         = false;
 	uint32_t    mLastDecontaminationElapsedSeconds = UINT32_MAX;
-	const char *mLastInactiveSensorName            = nullptr;
-	uint16_t    mLastInactiveHumidity              = UINT16_MAX;
+	const char *mLastSecondarySensorName           = nullptr;
+	uint16_t    mLastSecondaryHumidity             = UINT16_MAX;
 
 	lv_obj_t *mValueTemperature      = nullptr;
 	lv_obj_t *mValueHumidity         = nullptr;
 	lv_obj_t *mSignalWidget          = nullptr;
 	lv_obj_t *mDecontaminationLabel  = nullptr;
-	lv_obj_t *mInactiveDeltaLabel    = nullptr;
+	lv_obj_t *mSecondaryDeltaLabel   = nullptr;
 };
 
 #endif /* CONFIG_DISPLAY */

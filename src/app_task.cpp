@@ -36,8 +36,8 @@ namespace
 constexpr chip::EndpointId kTemperatureSensorEndpointId = 1;
 constexpr chip::EndpointId kHumiditySensorEndpointId = 2;
 
-constexpr int16_t kTemperatureMeasurementAttributeInvalidValue = 0x8000;
-constexpr int16_t kHumidityMeasurementAttributeInvalidValue = 0xffff;
+constexpr int16_t  kTemperatureMeasurementAttributeInvalidValue = 0x8000;
+constexpr uint16_t kHumidityMeasurementAttributeInvalidValue    = 0xffff;
 
 #ifdef CONFIG_DT_HAS_TI_HDC302X_ENABLED
 const device *sHdc302xSensorDev = DEVICE_DT_GET_ONE(ti_hdc302x);
@@ -49,10 +49,6 @@ const device *sSht4xSensorDev = DEVICE_DT_GET_ONE(sensirion_sht4x);
 #else
 const device *sSht4xSensorDev = nullptr;
 #endif
-const device *sActiveSensorDev    = nullptr;
-char const   *sActiveSensorName   = nullptr;
-const device *sInactiveSensorDev  = nullptr;
-char const   *sInactiveSensorName = nullptr;
 
 Nrf::Matter::IdentifyCluster sIdentifyTemperatureCluster(kTemperatureSensorEndpointId);
 Nrf::Matter::IdentifyCluster sIdentifyHumidityCluster(kHumiditySensorEndpointId);
@@ -71,22 +67,16 @@ void AppTask::ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChan
 	}
 #endif
 
-	if ((DK_BTN4_MSK & state & hasChanged)) {
-		Nrf::PostTask([] {
-			if (Instance().mDecontaminationActive) {
-				Instance().StopDecontamination();
-			} else {
-				Instance().StartDecontamination();
-			}
-		});
+	if ((DK_BTN1_MSK & state & hasChanged)) {
+		Nrf::PostTask([] { Instance().RequestHumidityCalibration(); });
 	}
 
 	if ((DK_BTN2_MSK & state & hasChanged)) {
-		Nrf::PostTask([] { Instance().ToggleActiveSensor(); });
+		Nrf::PostTask([] { Instance().TogglePrimarySensor(); });
 	}
 
-	if ((DK_BTN1_MSK & state & hasChanged)) {
-		Nrf::PostTask([] { Instance().RequestHumidityCalibration(); });
+	if ((DK_BTN4_MSK & state & hasChanged)) {
+		Nrf::PostTask([] { Instance().HandleDecontaminationButton(); });
 	}
 }
 
@@ -127,9 +117,38 @@ void AppTask::MeasurementsTimerHandler()
 	Instance().UpdateMeasurements();
 }
 
-void AppTask::DecontaminationTimerHandler()
+void AppTask::DecontaminationStartedCallback(void *context)
 {
-	Instance().RunDecontaminationCycle();
+	static_cast<AppTask *>(context)->OnDecontaminationStarted();
+}
+
+void AppTask::DecontaminationStoppedCallback(void *context)
+{
+	static_cast<AppTask *>(context)->OnDecontaminationStopped();
+}
+
+void AppTask::OnDecontaminationStarted()
+{
+	k_timer_stop(&sMeasurementsTimer);
+}
+
+void AppTask::OnDecontaminationStopped()
+{
+	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsIntervalMs),
+	              K_MSEC(kMeasurementsIntervalMs));
+}
+
+void AppTask::HandleDecontaminationButton()
+{
+	if (mDecontaminationController.Active()) {
+		mDecontaminationController.Stop();
+		return;
+	}
+	if (mPrimarySensor != &mHdc302xSensor || !mHdc302xSensor.IsAvailable()) {
+		LOG_WRN("Decontamination requires HDC302x as primary sensor");
+		return;
+	}
+	mDecontaminationController.Start();
 }
 
 #ifdef CONFIG_DISPLAY
@@ -191,45 +210,60 @@ void AppTask::UpdateRelativeHumidityClusterState(uint16_t newValue)
 	}
 }
 
-tl::expected<std::tuple<int16_t, uint16_t>, int> AppTask::ReadSensor(const device *dev, const char *name)
+tl::expected<AppTask::SensorReadings, int> AppTask::ReadSensor(const Sensor &sensor)
 {
-	const int result = sensor_sample_fetch(dev);
+	const int result = sensor_sample_fetch(sensor.dev);
 	if (result != 0) {
 		Nrf::LEDWidget &sampleFailedLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4);
 		sampleFailedLED.Set(true);
-		LOG_ERR("Fetching data from %s sensor failed with: %d", name, result);
+		LOG_ERR("Fetching data from %s sensor failed with: %d", sensor.name, result);
 		sampleFailedLED.Set(false);
 		return tl::unexpected(result);
 	}
 
 	struct sensor_value sTemperature;
 	int16_t temperatureHundredths;
-	const int temp_result = sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
+	const int temp_result = sensor_channel_get(sensor.dev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
 	if (temp_result == 0) {
-		LOG_DBG("New %s temperature measurement %d.%06d C", name, sTemperature.val1, sTemperature.val2);
+		LOG_DBG("New %s temperature measurement %d.%06d C", sensor.name, sTemperature.val1, sTemperature.val2);
 		temperatureHundredths = static_cast<int16_t>(sTemperature.val1 * 100 + sTemperature.val2 / 10000);
 	} else {
-		LOG_ERR("Getting temperature measurement data from %s failed with: %d", name, temp_result);
+		LOG_ERR("Getting temperature measurement data from %s failed with: %d", sensor.name, temp_result);
 		temperatureHundredths = kTemperatureMeasurementAttributeInvalidValue;
 	}
 
 	struct sensor_value sHumidity;
 	uint16_t humidityHundredths;
-	const int humidity_result = sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &sHumidity);
+	const int humidity_result = sensor_channel_get(sensor.dev, SENSOR_CHAN_HUMIDITY, &sHumidity);
 	if (humidity_result == 0) {
-		LOG_DBG("New %s relative humidity measurement %d.%06d%%", name, sHumidity.val1, sHumidity.val2);
+		LOG_DBG("New %s relative humidity measurement %d.%06d%%", sensor.name, sHumidity.val1, sHumidity.val2);
 		humidityHundredths = static_cast<int16_t>(sHumidity.val1 * 100 + sHumidity.val2 / 10000);
 	} else {
-		LOG_ERR("Getting humidity measurement data from %s failed with: %d", name, humidity_result);
+		LOG_ERR("Getting humidity measurement data from %s failed with: %d", sensor.name, humidity_result);
 		humidityHundredths = kHumidityMeasurementAttributeInvalidValue;
 	}
 
-	return tl::expected<std::tuple<int16_t, uint16_t>, int>({temperatureHundredths, humidityHundredths});
+	return SensorReadings{temperatureHundredths, humidityHundredths};
+}
+
+AppTask::SensorReadings AppTask::Smooth(Sensor &sensor, SensorReadings raw)
+{
+	auto [rawTemperatureHundredths, rawHumidityHundredths] = raw;
+	const int16_t smoothedTemperature =
+		(rawTemperatureHundredths != kTemperatureMeasurementAttributeInvalidValue)
+			? sensor.temperatureAverage.update(rawTemperatureHundredths)
+			: rawTemperatureHundredths;
+	const uint16_t smoothedHumidity =
+		(rawHumidityHundredths != kHumidityMeasurementAttributeInvalidValue)
+			? sensor.humidityAverage.update(rawHumidityHundredths)
+			: rawHumidityHundredths;
+
+	return {smoothedTemperature, smoothedHumidity};
 }
 
 void AppTask::UpdateMeasurements()
 {
-	if (mDecontaminationActive) {
+	if (mDecontaminationController.Active()) {
 		return;
 	}
 
@@ -238,209 +272,77 @@ void AppTask::UpdateMeasurements()
 	clusterUpdateLED.Set(true);
 #endif
 
-	auto smoothActive = [this](const device *dev, int16_t rawTemp, uint16_t rawHum) {
-		int16_t  smoothedTemp = rawTemp;
-		uint16_t smoothedHum  = rawHum;
-		if (dev == sHdc302xSensorDev) {
-			if (rawTemp != kTemperatureMeasurementAttributeInvalidValue) {
-				smoothedTemp = mHdc302xTemperatureMovingAverage.update(rawTemp);
-			}
-			if (rawHum != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue)) {
-				smoothedHum = mHdc302xHumidityMovingAverage.update(rawHum);
-			}
-		} else {
-			if (rawTemp != kTemperatureMeasurementAttributeInvalidValue) {
-				smoothedTemp = mSht4xTemperatureMovingAverage.update(rawTemp);
-			}
-			if (rawHum != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue)) {
-				smoothedHum = mSht4xHumidityMovingAverage.update(rawHum);
-			}
-		}
-		return std::make_tuple(smoothedTemp, smoothedHum);
-	};
-
-	auto activeResult = ReadSensor(sActiveSensorDev, sActiveSensorName);
-	if (!activeResult) {
-		LOG_ERR("Failed to read active sensor data: %d", activeResult.error());
+	auto primaryResult = ReadSensor(*mPrimarySensor);
+	if (!primaryResult) {
+		LOG_ERR("Failed to read primary sensor data: %d", primaryResult.error());
 #ifndef CONFIG_DISPLAY
 		clusterUpdateLED.Set(false);
 #endif
 		return;
 	}
-	auto [rawActiveTemp, rawActiveHum] = activeResult.value();
-	auto [activeTemp, activeHum] = smoothActive(sActiveSensorDev, rawActiveTemp, rawActiveHum);
+	auto [primaryTemp, primaryHum] = Smooth(*mPrimarySensor, primaryResult.value());
 
-	uint16_t inactiveHum = static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue);
-	if (sInactiveSensorDev != nullptr) {
-		auto inactiveResult = ReadSensor(sInactiveSensorDev, sInactiveSensorName);
-		if (inactiveResult) {
-			auto [rawInactiveTemp, rawInactiveHum] = inactiveResult.value();
-			auto [unusedInactiveTemp, smoothedInactiveHum] =
-				smoothActive(sInactiveSensorDev, rawInactiveTemp, rawInactiveHum);
-			(void)unusedInactiveTemp;
-			inactiveHum = smoothedInactiveHum;
+	uint16_t secondaryHum = kHumidityMeasurementAttributeInvalidValue;
+	const char *secondaryName = nullptr;
+	if (mSecondarySensor != nullptr) {
+		secondaryName = mSecondarySensor->name;
+		auto secondaryResult = ReadSensor(*mSecondarySensor);
+		if (secondaryResult) {
+			secondaryHum = Smooth(*mSecondarySensor, secondaryResult.value()).humidity;
 		} else {
-			LOG_WRN("Failed to read inactive sensor data: %d", inactiveResult.error());
+			LOG_WRN("Failed to read secondary sensor data: %d", secondaryResult.error());
 		}
 	}
 
 	if (mCalibrationRequested) {
 		mCalibrationRequested = false;
-		const bool sht4xActive      = (sActiveSensorDev == sSht4xSensorDev);
-		const bool hdc302xAvailable = (sHdc302xSensorDev != nullptr);
+		const bool sht4xPrimary     = (mPrimarySensor == &mSht4xSensor);
+		const bool hdc302xAvailable = mHdc302xSensor.IsAvailable();
 		const bool readingsValid =
-			activeHum   != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue) &&
-			inactiveHum != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue);
-		if (!sht4xActive || !hdc302xAvailable) {
-			LOG_WRN("Humidity calibration requires SHT4x active and HDC302x present; skipped");
+			primaryHum   != kHumidityMeasurementAttributeInvalidValue &&
+			secondaryHum != kHumidityMeasurementAttributeInvalidValue;
+		if (!sht4xPrimary || !hdc302xAvailable) {
+			LOG_WRN("Humidity calibration requires SHT4x primary and HDC302x present; skipped");
 		} else if (!readingsValid) {
 			LOG_WRN("Humidity calibration skipped: smoothed reading unavailable");
 		} else {
-			// activeHum = SHT4x smoothed; inactiveHum = HDC302x smoothed (since SHT4x is active).
-			WriteHumidityCalibrationOffset(activeHum, inactiveHum);
+			// primaryHum = SHT4x smoothed; secondaryHum = HDC302x smoothed (since SHT4x is primary).
+			if (mHumidityCalibrator.Apply(primaryHum, secondaryHum)) {
+				mHdc302xSensor.humidityAverage.reset();
+			}
 		}
 	}
 
-	UpdateTemperatureClusterState(activeTemp);
-	UpdateRelativeHumidityClusterState(activeHum);
+	UpdateTemperatureClusterState(primaryTemp);
+	UpdateRelativeHumidityClusterState(primaryHum);
 
 #ifdef CONFIG_DISPLAY
 	auto [connected, lqi] = GetThreadConnectivity();
 	LOG_DBG("Thread connectivity: %s, LQI: %d", connected ? "connected" : "not connected", lqi);
 	DisplayManager::Instance().UpdateSignalStrength(connected, lqi);
 
-	DisplayManager::Instance().UpdateMeasurements(activeTemp, activeHum);
-	DisplayManager::Instance().SetSensorInfo(sInactiveSensorName, inactiveHum);
+	DisplayManager::Instance().UpdateMeasurements(primaryTemp, primaryHum);
+	DisplayManager::Instance().SetSensorInfo(secondaryName, secondaryHum);
 	DisplayManager::Instance().RefreshDisplay();
 #else
 	clusterUpdateLED.Set(false);
 #endif
 }
 
-void AppTask::StartDecontamination()
+void AppTask::TogglePrimarySensor()
 {
-	if (mDecontaminationActive) {
-		return;
-	}
-
-	if (sActiveSensorDev != sHdc302xSensorDev || sHdc302xSensorDev == nullptr) {
-		LOG_WRN("Decontamination requires HDC302x as active sensor");
-		return;
-	}
-
-	k_timer_stop(&sMeasurementsTimer);
-
-	const struct sensor_value heaterLevel = {.val1 = kDecontaminationHeaterLevel, .val2 = 0};
-	const int heaterResult = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
-	                                         (enum sensor_attribute)SENSOR_ATTR_HEATER_LEVEL,
-	                                         &heaterLevel);
-	if (heaterResult != 0) {
-		LOG_ERR("Failed to enable HDC302x heater: %d", heaterResult);
-	}
-
-	mDecontaminationStartUptimeMs = k_uptime_get();
-	mDecontaminationActive        = true;
-
-	k_timer_start(&sDecontaminationTimer, K_MSEC(kDecontaminationIntervalMs),
-	              K_MSEC(kDecontaminationIntervalMs));
-
-	Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4).Blink(kDecontaminationLedOnMs,
-	                                                   kDecontaminationIntervalMs - kDecontaminationLedOnMs);
-
-#ifdef CONFIG_DISPLAY
-	DisplayManager::Instance().SetDecontaminationStatus(true, 0);
-	DisplayManager::Instance().RefreshDisplay();
-#endif
-
-	LOG_INF("Decontamination started (heater level %d)", kDecontaminationHeaterLevel);
-}
-
-void AppTask::StopDecontamination()
-{
-	if (!mDecontaminationActive) {
-		return;
-	}
-
-	k_timer_stop(&sDecontaminationTimer);
-
-	if (sHdc302xSensorDev != nullptr) {
-		const struct sensor_value heaterLevel = {.val1 = kHeaterLevelOff, .val2 = 0};
-		const int heaterResult = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
-		                                         (enum sensor_attribute)SENSOR_ATTR_HEATER_LEVEL,
-		                                         &heaterLevel);
-		if (heaterResult != 0) {
-			LOG_ERR("Failed to disable HDC302x heater: %d", heaterResult);
-		}
-	}
-
-	mDecontaminationActive = false;
-
-	Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED4).Set(false);
-
-#ifdef CONFIG_DISPLAY
-	DisplayManager::Instance().SetDecontaminationStatus(false, 0);
-	DisplayManager::Instance().RefreshDisplay();
-#endif
-
-	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsIntervalMs),
-	              K_MSEC(kMeasurementsIntervalMs));
-
-	LOG_INF("Decontamination stopped");
-}
-
-void AppTask::RunDecontaminationCycle()
-{
-	if (!mDecontaminationActive) {
-		return;
-	}
-
-	auto sensorResult = ReadSensor(sHdc302xSensorDev, "HDC302x");
-	if (!sensorResult) {
-		LOG_ERR("Decon: failed to read sensor: %d", sensorResult.error());
-		return;
-	}
-
-	auto [temperatureHundredths, humidityHundredths] = sensorResult.value();
-	const int64_t elapsedMs = k_uptime_get() - mDecontaminationStartUptimeMs;
-
-	LOG_DBG("Decon t=%lld.%03llds  T=%d.%02dC  RH=%u.%02u%%",
-	        elapsedMs / 1000, elapsedMs % 1000,
-	        temperatureHundredths / 100, temperatureHundredths % 100,
-	        humidityHundredths / 100, humidityHundredths % 100);
-
-#ifdef CONFIG_DISPLAY
-	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
-	DisplayManager::Instance().SetDecontaminationStatus(true, static_cast<uint32_t>(elapsedMs / 1000));
-	DisplayManager::Instance().RefreshDisplay();
-#endif
-
-	const bool humidityValid =
-		humidityHundredths != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue);
-	if (elapsedMs >= kDecontaminationMaxDurationMs ||
-	    (humidityValid && humidityHundredths < kDecontaminationHumidityExitHundredths)) {
-		StopDecontamination();
-	}
-}
-
-void AppTask::ToggleActiveSensor()
-{
-	if (mDecontaminationActive) {
+	if (mDecontaminationController.Active()) {
 		LOG_WRN("Sensor toggle ignored during decontamination");
 		return;
 	}
-	if (sInactiveSensorDev == nullptr) {
+	if (mSecondarySensor == nullptr) {
 		LOG_WRN("Sensor toggle requires both sensors in device tree");
 		return;
 	}
 
-	const device *previousActiveDev    = sActiveSensorDev;
-	const char   *previousActiveName   = sActiveSensorName;
-	sActiveSensorDev    = sInactiveSensorDev;
-	sActiveSensorName   = sInactiveSensorName;
-	sInactiveSensorDev  = previousActiveDev;
-	sInactiveSensorName = previousActiveName;
+	std::swap(mPrimarySensor, mSecondarySensor);
 
-	LOG_INF("Active sensor: %s -> %s", sInactiveSensorName, sActiveSensorName);
+	LOG_INF("Primary sensor: %s -> %s", mSecondarySensor->name, mPrimarySensor->name);
 
 	UpdateMeasurements();
 }
@@ -449,72 +351,6 @@ void AppTask::RequestHumidityCalibration()
 {
 	mCalibrationRequested = true;
 	LOG_INF("Humidity calibration requested (will apply on next measurement tick)");
-}
-
-void AppTask::WriteHumidityCalibrationOffset(uint16_t sht4xSmoothedHundredths,
-                                             uint16_t hdc302xSmoothedHundredths)
-{
-	// Driver accepts ±127 * 0.1953125 % ≈ ±24.8 % RH. Reject values that would be clamped.
-	constexpr int32_t kMaxAbsOffsetHundredths = 2480;
-
-	const struct sensor_value manual = {.val1 = HDC302X_SENSOR_MEAS_INTERVAL_MANUAL, .val2 = 0};
-	int rc = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
-	                         (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME, &manual);
-	if (rc != 0) {
-		LOG_ERR("Calibration: failed to enter HDC302x manual mode (%d)", rc);
-		return;
-	}
-
-	auto restoreAutoMode = [] {
-		const struct sensor_value autoMeas = {.val1 = HDC302X_SENSOR_MEAS_INTERVAL_0_5, .val2 = 0};
-		const int restoreRc = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
-		                                      (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
-		                                      &autoMeas);
-		if (restoreRc != 0) {
-			LOG_ERR("Calibration: failed to re-enable HDC302x auto-measurement (%d) -- sensor stuck in manual mode",
-			        restoreRc);
-		}
-	};
-
-	struct sensor_value existing = {};
-	rc = sensor_attr_get(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, SENSOR_ATTR_OFFSET, &existing);
-	if (rc != 0) {
-		LOG_ERR("Calibration: failed to read existing HDC302x offset (%d)", rc);
-		restoreAutoMode();
-		return;
-	}
-
-	const int32_t existingHundredths = existing.val1 * 100 + existing.val2 / 10000;
-	const int32_t deltaHundredths    = static_cast<int32_t>(sht4xSmoothedHundredths)
-	                                 - static_cast<int32_t>(hdc302xSmoothedHundredths);
-	const int32_t newHundredths      = existingHundredths + deltaHundredths;
-
-	if (newHundredths > kMaxAbsOffsetHundredths || newHundredths < -kMaxAbsOffsetHundredths) {
-		LOG_WRN("Calibration: new offset %d.%02d%% out of HDC302x range (+/-24.80%%); skipped",
-		        newHundredths / 100,
-		        (newHundredths % 100 < 0) ? -(newHundredths % 100) : (newHundredths % 100));
-		restoreAutoMode();
-		return;
-	}
-
-	const struct sensor_value next = {.val1 = newHundredths / 100,
-	                                  .val2 = (newHundredths % 100) * 10000};
-	rc = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, SENSOR_ATTR_OFFSET, &next);
-	if (rc != 0) {
-		LOG_ERR("Calibration: failed to program HDC302x offset (%d)", rc);
-		restoreAutoMode();
-		return;
-	}
-
-	auto absMod = [](int32_t v) { return (v % 100 < 0) ? -(v % 100) : (v % 100); };
-	LOG_INF("HDC302x humidity offset programmed: existing=%d.%02d%%, delta=%d.%02d%%, new=%d.%02d%%",
-	        existingHundredths / 100, absMod(existingHundredths),
-	        deltaHundredths    / 100, absMod(deltaHundredths),
-	        newHundredths      / 100, absMod(newHundredths));
-
-	mHdc302xHumidityMovingAverage.reset();
-
-	restoreAutoMode();
 }
 
 CHIP_ERROR AppTask::Init()
@@ -539,31 +375,39 @@ CHIP_ERROR AppTask::Init()
 		return chip::System::MapErrorZephyr(-ENODEV);
 	}
 
-	if (sHdc302xSensorDev != nullptr && !device_is_ready(sHdc302xSensorDev)) {
-		LOG_ERR("HDC302x sensor device not ready");
-		return chip::System::MapErrorZephyr(-ENODEV);
+	const device *hdc302xDev = sHdc302xSensorDev;
+	const device *sht4xDev   = sSht4xSensorDev;
+
+	if (hdc302xDev != nullptr && !device_is_ready(hdc302xDev)) {
+		LOG_WRN("HDC302x sensor device not ready; ignoring");
+		hdc302xDev = nullptr;
 	}
-	if (sSht4xSensorDev != nullptr && !device_is_ready(sSht4xSensorDev)) {
-		LOG_ERR("SHT4x sensor device not ready");
+	if (sht4xDev != nullptr && !device_is_ready(sht4xDev)) {
+		LOG_WRN("SHT4x sensor device not ready; ignoring");
+		sht4xDev = nullptr;
+	}
+
+	if (hdc302xDev == nullptr && sht4xDev == nullptr) {
+		LOG_ERR("No sensor device ready");
 		return chip::System::MapErrorZephyr(-ENODEV);
 	}
 
-	if (sHdc302xSensorDev != nullptr) {
-		sActiveSensorDev    = sHdc302xSensorDev;
-		sActiveSensorName   = "HDC302x";
-		sInactiveSensorDev  = sSht4xSensorDev;
-		sInactiveSensorName = (sSht4xSensorDev != nullptr) ? "SHT4x" : nullptr;
+	mHdc302xSensor.dev  = hdc302xDev;
+	mHdc302xSensor.name = "HDC302x";
+	mSht4xSensor.dev    = sht4xDev;
+	mSht4xSensor.name   = "SHT4x";
+
+	if (hdc302xDev != nullptr) {
+		mPrimarySensor   = &mHdc302xSensor;
+		mSecondarySensor = (sht4xDev != nullptr) ? &mSht4xSensor : nullptr;
 	} else {
-		sActiveSensorDev    = sSht4xSensorDev;
-		sActiveSensorName   = "SHT4x";
-		sInactiveSensorDev  = nullptr;
-		sInactiveSensorName = nullptr;
+		mPrimarySensor   = &mSht4xSensor;
+		mSecondarySensor = nullptr;
 	}
 
-	if (sHdc302xSensorDev != nullptr) {
-		const struct sensor_value integration_time = {.val1 = (int32_t)HDC302X_SENSOR_MEAS_INTERVAL_0_5, .val2 = 0};
-		sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL, (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME, &integration_time); // 0.5 Hz
-	}
+	ReturnErrorOnFailure(ConfigureHdc302xDefaults());
+
+	mHumidityCalibrator.Init(mHdc302xSensor.dev);
 
 #ifdef CONFIG_DISPLAY
 	ReturnErrorOnFailure(DisplayManager::Instance().Init());
@@ -572,38 +416,56 @@ CHIP_ERROR AppTask::Init()
 	return Nrf::Matter::StartServer();
 }
 
+CHIP_ERROR AppTask::ConfigureHdc302xDefaults()
+{
+	if (!mHdc302xSensor.IsAvailable()) {
+		return CHIP_NO_ERROR;
+	}
+
+	const struct sensor_value integrationTime = {
+		.val1 = static_cast<int32_t>(HDC302X_SENSOR_MEAS_INTERVAL_0_5), .val2 = 0};
+	const int result = sensor_attr_set(mHdc302xSensor.dev, SENSOR_CHAN_ALL,
+	                                   (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
+	                                   &integrationTime); // 0.5 Hz
+	if (result != 0) {
+		LOG_ERR("Failed to set HDC302x integration time: %d", result);
+		return chip::System::MapErrorZephyr(result);
+	}
+	return CHIP_NO_ERROR;
+}
+
+namespace {
+template <auto GetFn, typename T>
+CHIP_ERROR LoadAttributeBound(chip::EndpointId endpoint, const char *what, T &out)
+{
+	DataModel::Nullable<T> value;
+	Protocols::InteractionModel::Status status = GetFn(endpoint, value);
+	if (status != Protocols::InteractionModel::Status::Success || value.IsNull()) {
+		LOG_ERR("Failed to get %s %x", what, to_underlying(status));
+		return CHIP_ERROR_INCORRECT_STATE;
+	}
+	out = value.Value();
+	return CHIP_NO_ERROR;
+}
+} /* namespace */
+
 CHIP_ERROR AppTask::ConfigureMeasurementValidityRanges()
 {
-	DataModel::Nullable<int16_t> val;
-	Protocols::InteractionModel::Status status =
-		Clusters::TemperatureMeasurement::Attributes::MinMeasuredValue::Get(kTemperatureSensorEndpointId, val);
-	if (status != Protocols::InteractionModel::Status::Success || val.IsNull()) {
-		LOG_ERR("Failed to get temperature measurement min value %x", to_underlying(status));
-		return CHIP_ERROR_INCORRECT_STATE;
-	}
-	mTemperatureMeasurementAttributeMinValue = val.Value();
+	namespace TempAttr = Clusters::TemperatureMeasurement::Attributes;
+	namespace HumAttr  = Clusters::RelativeHumidityMeasurement::Attributes;
 
-	status = Clusters::TemperatureMeasurement::Attributes::MaxMeasuredValue::Get(kTemperatureSensorEndpointId, val);
-	if (status != Protocols::InteractionModel::Status::Success || val.IsNull()) {
-		LOG_ERR("Failed to get temperature measurement max value %x", to_underlying(status));
-		return CHIP_ERROR_INCORRECT_STATE;
-	}
-	mTemperatureMeasurementAttributeMaxValue = val.Value();
-
-	DataModel::Nullable<uint16_t> uval;
-	status = Clusters::RelativeHumidityMeasurement::Attributes::MinMeasuredValue::Get(kHumiditySensorEndpointId, uval);
-	if (status != Protocols::InteractionModel::Status::Success || uval.IsNull()) {
-		LOG_ERR("Failed to get humidity measurement min value %x", to_underlying(status));
-		return CHIP_ERROR_INCORRECT_STATE;
-	}
-	mHumidityMeasurementAttributeMinValue = uval.Value();
-
-	status = Clusters::RelativeHumidityMeasurement::Attributes::MaxMeasuredValue::Get(kHumiditySensorEndpointId, uval);
-	if (status != Protocols::InteractionModel::Status::Success || uval.IsNull()) {
-		LOG_ERR("Failed to get humidity measurement max value %x", to_underlying(status));
-		return CHIP_ERROR_INCORRECT_STATE;
-	}
-	mHumidityMeasurementAttributeMaxValue = uval.Value();
+	ReturnErrorOnFailure(LoadAttributeBound<TempAttr::MinMeasuredValue::Get>(
+		kTemperatureSensorEndpointId, "temperature measurement min value",
+		mTemperatureMeasurementAttributeMinValue));
+	ReturnErrorOnFailure(LoadAttributeBound<TempAttr::MaxMeasuredValue::Get>(
+		kTemperatureSensorEndpointId, "temperature measurement max value",
+		mTemperatureMeasurementAttributeMaxValue));
+	ReturnErrorOnFailure(LoadAttributeBound<HumAttr::MinMeasuredValue::Get>(
+		kHumiditySensorEndpointId, "humidity measurement min value",
+		mHumidityMeasurementAttributeMinValue));
+	ReturnErrorOnFailure(LoadAttributeBound<HumAttr::MaxMeasuredValue::Get>(
+		kHumiditySensorEndpointId, "humidity measurement max value",
+		mHumidityMeasurementAttributeMaxValue));
 
 	return CHIP_NO_ERROR;
 }
@@ -617,8 +479,10 @@ CHIP_ERROR AppTask::StartApp()
 		&sMeasurementsTimer, [](k_timer *) { Nrf::PostTask([] { MeasurementsTimerHandler(); }); }, nullptr);
 	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsInitialMs), K_MSEC(kMeasurementsIntervalMs));
 
-	k_timer_init(
-		&sDecontaminationTimer, [](k_timer *) { Nrf::PostTask([] { DecontaminationTimerHandler(); }); }, nullptr);
+	mDecontaminationController.Init(mHdc302xSensor.dev,
+	                                &AppTask::DecontaminationStartedCallback,
+	                                &AppTask::DecontaminationStoppedCallback,
+	                                this);
 
 	while (true) {
 		Nrf::DispatchNextTask();
