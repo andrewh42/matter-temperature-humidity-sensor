@@ -185,6 +185,11 @@ CHIP_ERROR DisplayManager::Init()
 	lv_label_set_text(mDecontaminationLabel, "");
 	lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
 
+	mInactiveDeltaLabel = lv_label_create(header);
+	lv_obj_set_style_text_font(mInactiveDeltaLabel, &lv_font_splinesans_medium_20, 0);
+	lv_obj_align(mInactiveDeltaLabel, LV_ALIGN_TOP_LEFT, 4, 0);
+	lv_label_set_text(mInactiveDeltaLabel, "");
+
 	// Sensor container (flex column, space-evenly)
 	lv_obj_t *container = lv_obj_create(screen);
 	lv_obj_remove_style_all(container);
@@ -241,6 +246,13 @@ void DisplayManager::SetDecontaminationStatus(bool active, uint32_t elapsedSecon
 	mCurrentDecontaminationElapsedSeconds = elapsedSeconds;
 }
 
+void DisplayManager::SetSensorInfo(const char *inactiveName,
+                                    uint16_t inactiveHumidityHundredths)
+{
+	mCurrentInactiveSensorName = inactiveName;
+	mCurrentInactiveHumidity   = inactiveHumidityHundredths;
+}
+
 // ---------------------------------------------------------------------------
 // Refresh
 // ---------------------------------------------------------------------------
@@ -255,7 +267,9 @@ void DisplayManager::RefreshDisplay()
 	    mCurrentConnected                     == mLastConnected                     &&
 	    mCurrentLqi                           == mLastLqi                           &&
 	    mCurrentDecontaminationActive         == mLastDecontaminationActive         &&
-	    mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds) {
+	    mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds &&
+	    mCurrentInactiveSensorName            == mLastInactiveSensorName            &&
+	    mCurrentInactiveHumidity              == mLastInactiveHumidity) {
 		return;
 	}
 
@@ -268,6 +282,7 @@ void DisplayManager::RefreshDisplay()
 
 	DrawMeasurements();
 	DrawSignalBars();
+	DrawSensorInfo();
 	DrawDecontamination();
 	lv_timer_handler();
 
@@ -281,6 +296,8 @@ void DisplayManager::RefreshDisplay()
 	mLastLqi                           = mCurrentLqi;
 	mLastDecontaminationActive         = mCurrentDecontaminationActive;
 	mLastDecontaminationElapsedSeconds = mCurrentDecontaminationElapsedSeconds;
+	mLastInactiveSensorName            = mCurrentInactiveSensorName;
+	mLastInactiveHumidity              = mCurrentInactiveHumidity;
 }
 
 void DisplayManager::DrawMeasurements()
@@ -302,6 +319,33 @@ void DisplayManager::DrawMeasurements()
 void DisplayManager::DrawSignalBars()
 {
 	lv_obj_invalidate(mSignalWidget);
+}
+
+void DisplayManager::DrawSensorInfo()
+{
+	if (mCurrentDecontaminationActive) {
+		lv_obj_add_flag(mInactiveDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+		return;
+	}
+
+	const bool inactiveValid =
+		mCurrentInactiveSensorName != nullptr &&
+		mCurrentInactiveHumidity   != UINT16_MAX &&
+		mCurrentHumidity           != UINT16_MAX;
+	if (inactiveValid) {
+		int32_t diff = static_cast<int32_t>(mCurrentInactiveHumidity) -
+		               static_cast<int32_t>(mCurrentHumidity);
+		int32_t deltaTenths = (diff >= 0) ? (diff + 5) / 10 : (diff - 5) / 10;
+		int32_t absTenths = (deltaTenths < 0) ? -deltaTenths : deltaTenths;
+		lv_obj_remove_flag(mInactiveDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+		lv_label_set_text_fmt(mInactiveDeltaLabel, "%s %s%d.%01d",
+		                      mCurrentInactiveSensorName,
+		                      (deltaTenths < 0) ? "-" : "+",
+		                      static_cast<int>(absTenths / 10),
+		                      static_cast<int>(absTenths % 10));
+	} else {
+		lv_obj_add_flag(mInactiveDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+	}
 }
 
 void DisplayManager::DrawDecontamination()

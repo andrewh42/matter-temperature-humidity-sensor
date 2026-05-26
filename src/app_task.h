@@ -56,12 +56,16 @@ private:
 	uint16_t mHumidityMeasurementAttributeMinValue = 0;
 	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
 
-	MovingAverage<int16_t>  mTemperatureMovingAverage{ 20 }; // alpha = 20/32 = 0.625
-	MovingAverage<uint16_t> mHumidityMovingAverage{ 20 };
+	MovingAverage<int16_t>  mHdc302xTemperatureMovingAverage{ 20 }; // alpha = 20/32 = 0.625
+	MovingAverage<uint16_t> mHdc302xHumidityMovingAverage   { 20 };
+	MovingAverage<int16_t>  mSht4xTemperatureMovingAverage  { 20 };
+	MovingAverage<uint16_t> mSht4xHumidityMovingAverage     { 20 };
 
-	tl::expected<std::tuple<int16_t, uint16_t>, int> ReadSensor();
+	tl::expected<std::tuple<int16_t, uint16_t>, int> ReadSensor(const device *dev, const char *name);
 	void UpdateTemperatureClusterState(int16_t temperatureHundredths);
 	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
+
+	void ToggleActiveSensor();
 
 	void StartDecontamination();
 	void StopDecontamination();

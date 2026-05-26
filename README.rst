@@ -23,6 +23,22 @@ The HDC302x is connected to the nRF5340-DK via I2C using the following pin confi
 
 The Adafruit HDC302x breakout board is a convenient option for connecting the sensor to the nRF5340-DK.
 
+An alternative supported sensor is the SHT4x, which can be connected as follows:
+
++----------------+---------------------+
+| SHT4x Signal   | nRF5340-DK Pin      |
++================+=====================+
+| VCC            | VDD (header P1)     |
++----------------+---------------------+
+| GND            | GND (header P1)     |
++----------------+---------------------+
+| SDA            | P1.04 (header P4)   |
++----------------+---------------------+
+| SCL            | P1.05 (header P4)   |
++----------------+---------------------+
+
+When two sensors are attached, button 2 on the nRF5340-DK toggles between them.
+
 
 Optional e-paper display
 ************************
