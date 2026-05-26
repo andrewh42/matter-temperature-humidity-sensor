@@ -40,9 +40,9 @@ target_sources(app PRIVATE
 
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/display_manager.cpp
-  src/lv_font_splinesans_medium_20.c
-  src/lv_font_splinesans_bold_72.c
-  src/lv_font_phosphor_32.c
+  src/fonts/lv_font_splinesans_medium_20.c
+  src/fonts/lv_font_splinesans_bold_72.c
+  src/fonts/lv_font_phosphor_32.c
 )
 
 if(CONFIG_DISPLAY)
