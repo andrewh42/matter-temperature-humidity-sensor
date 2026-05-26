@@ -33,6 +33,9 @@ public:
 		return static_cast<T>(mSmoothed);
 	}
 
+	// Discards the smoothed state so the next update() re-initialises from that sample.
+	void reset() { mSmoothed = INT32_MIN; }
+
 private:
 	const int32_t mAlpha32;
 	int32_t mSmoothed = INT32_MIN;

@@ -84,6 +84,10 @@ void AppTask::ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChan
 	if ((DK_BTN2_MSK & state & hasChanged)) {
 		Nrf::PostTask([] { Instance().ToggleActiveSensor(); });
 	}
+
+	if ((DK_BTN1_MSK & state & hasChanged)) {
+		Nrf::PostTask([] { Instance().RequestHumidityCalibration(); });
+	}
 }
 
 void AppTask::LEDStateHandler()
@@ -280,6 +284,23 @@ void AppTask::UpdateMeasurements()
 		}
 	}
 
+	if (mCalibrationRequested) {
+		mCalibrationRequested = false;
+		const bool sht4xActive      = (sActiveSensorDev == sSht4xSensorDev);
+		const bool hdc302xAvailable = (sHdc302xSensorDev != nullptr);
+		const bool readingsValid =
+			activeHum   != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue) &&
+			inactiveHum != static_cast<uint16_t>(kHumidityMeasurementAttributeInvalidValue);
+		if (!sht4xActive || !hdc302xAvailable) {
+			LOG_WRN("Humidity calibration requires SHT4x active and HDC302x present; skipped");
+		} else if (!readingsValid) {
+			LOG_WRN("Humidity calibration skipped: smoothed reading unavailable");
+		} else {
+			// activeHum = SHT4x smoothed; inactiveHum = HDC302x smoothed (since SHT4x is active).
+			WriteHumidityCalibrationOffset(activeHum, inactiveHum);
+		}
+	}
+
 	UpdateTemperatureClusterState(activeTemp);
 	UpdateRelativeHumidityClusterState(activeHum);
 
@@ -422,6 +443,78 @@ void AppTask::ToggleActiveSensor()
 	LOG_INF("Active sensor: %s -> %s", sInactiveSensorName, sActiveSensorName);
 
 	UpdateMeasurements();
+}
+
+void AppTask::RequestHumidityCalibration()
+{
+	mCalibrationRequested = true;
+	LOG_INF("Humidity calibration requested (will apply on next measurement tick)");
+}
+
+void AppTask::WriteHumidityCalibrationOffset(uint16_t sht4xSmoothedHundredths,
+                                             uint16_t hdc302xSmoothedHundredths)
+{
+	// Driver accepts ±127 * 0.1953125 % ≈ ±24.8 % RH. Reject values that would be clamped.
+	constexpr int32_t kMaxAbsOffsetHundredths = 2480;
+
+	const struct sensor_value manual = {.val1 = HDC302X_SENSOR_MEAS_INTERVAL_MANUAL, .val2 = 0};
+	int rc = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
+	                         (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME, &manual);
+	if (rc != 0) {
+		LOG_ERR("Calibration: failed to enter HDC302x manual mode (%d)", rc);
+		return;
+	}
+
+	auto restoreAutoMode = [] {
+		const struct sensor_value autoMeas = {.val1 = HDC302X_SENSOR_MEAS_INTERVAL_0_5, .val2 = 0};
+		const int restoreRc = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_ALL,
+		                                      (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
+		                                      &autoMeas);
+		if (restoreRc != 0) {
+			LOG_ERR("Calibration: failed to re-enable HDC302x auto-measurement (%d) -- sensor stuck in manual mode",
+			        restoreRc);
+		}
+	};
+
+	struct sensor_value existing = {};
+	rc = sensor_attr_get(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, SENSOR_ATTR_OFFSET, &existing);
+	if (rc != 0) {
+		LOG_ERR("Calibration: failed to read existing HDC302x offset (%d)", rc);
+		restoreAutoMode();
+		return;
+	}
+
+	const int32_t existingHundredths = existing.val1 * 100 + existing.val2 / 10000;
+	const int32_t deltaHundredths    = static_cast<int32_t>(sht4xSmoothedHundredths)
+	                                 - static_cast<int32_t>(hdc302xSmoothedHundredths);
+	const int32_t newHundredths      = existingHundredths + deltaHundredths;
+
+	if (newHundredths > kMaxAbsOffsetHundredths || newHundredths < -kMaxAbsOffsetHundredths) {
+		LOG_WRN("Calibration: new offset %d.%02d%% out of HDC302x range (+/-24.80%%); skipped",
+		        newHundredths / 100,
+		        (newHundredths % 100 < 0) ? -(newHundredths % 100) : (newHundredths % 100));
+		restoreAutoMode();
+		return;
+	}
+
+	const struct sensor_value next = {.val1 = newHundredths / 100,
+	                                  .val2 = (newHundredths % 100) * 10000};
+	rc = sensor_attr_set(sHdc302xSensorDev, SENSOR_CHAN_HUMIDITY, SENSOR_ATTR_OFFSET, &next);
+	if (rc != 0) {
+		LOG_ERR("Calibration: failed to program HDC302x offset (%d)", rc);
+		restoreAutoMode();
+		return;
+	}
+
+	auto absMod = [](int32_t v) { return (v % 100 < 0) ? -(v % 100) : (v % 100); };
+	LOG_INF("HDC302x humidity offset programmed: existing=%d.%02d%%, delta=%d.%02d%%, new=%d.%02d%%",
+	        existingHundredths / 100, absMod(existingHundredths),
+	        deltaHundredths    / 100, absMod(deltaHundredths),
+	        newHundredths      / 100, absMod(newHundredths));
+
+	mHdc302xHumidityMovingAverage.reset();
+
+	restoreAutoMode();
 }
 
 CHIP_ERROR AppTask::Init()

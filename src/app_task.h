@@ -50,6 +50,8 @@ private:
 	bool    mDecontaminationActive        = false;
 	int64_t mDecontaminationStartUptimeMs = 0;
 
+	bool    mCalibrationRequested        = false;
+
 	CHIP_ERROR ConfigureMeasurementValidityRanges();
 	int16_t mTemperatureMeasurementAttributeMinValue = 0;
 	int16_t mTemperatureMeasurementAttributeMaxValue = 0;
@@ -66,6 +68,10 @@ private:
 	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 
 	void ToggleActiveSensor();
+
+	void RequestHumidityCalibration();
+	void WriteHumidityCalibrationOffset(uint16_t sht4xSmoothedHundredths,
+	                                    uint16_t hdc302xSmoothedHundredths);
 
 	void StartDecontamination();
 	void StopDecontamination();
