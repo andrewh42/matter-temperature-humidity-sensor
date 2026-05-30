@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 struct device;
 
@@ -23,7 +24,8 @@ public:
 	/// Returns true iff the offset was actually updated. Callers can use the
 	/// return value to know when to flush dependent state (e.g. a moving
 	/// average of the sensor's readings).
-	bool Apply(uint16_t referenceHundredths, uint16_t targetHundredths);
+	bool Apply(std::optional<uint16_t> referenceHundredths,
+	           std::optional<uint16_t> targetHundredths);
 
 private:
 	// Driver accepts ±127 * 0.1953125 % ≈ ±24.8 % RH. Reject values that

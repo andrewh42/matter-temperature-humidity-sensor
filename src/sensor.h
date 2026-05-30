@@ -10,6 +10,8 @@
 
 #include <tl/expected.hpp>
 
+#include <optional>
+
 struct device;
 
 /// Bundles a temperature/humidity sensor with its smoothing state so that the
@@ -22,12 +24,9 @@ struct Sensor {
 
 	bool IsAvailable() const { return dev != nullptr; }
 
-	static constexpr int16_t  kTemperatureInvalid = 0x8000;
-	static constexpr uint16_t kHumidityInvalid    = 0xffff;
-
 	struct Readings {
-		int16_t  temperature;
-		uint16_t humidity;
+		std::optional<int16_t>  temperature;
+		std::optional<uint16_t> humidity;
 	};
 
 	tl::expected<Readings, int> Read();

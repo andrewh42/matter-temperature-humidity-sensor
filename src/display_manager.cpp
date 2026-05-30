@@ -20,10 +20,6 @@ LV_FONT_DECLARE(lv_font_phosphor_32);
 static constexpr uint32_t kPhosphorThermometer = 0xE5C6;
 static constexpr uint32_t kPhosphorDrop        = 0xE210;
 
-// ---------------------------------------------------------------------------
-// Signal widget — custom draw callback
-// ---------------------------------------------------------------------------
-
 void DisplayManager::SignalDrawCallback(lv_event_t *event)
 {
 	auto      *self  = static_cast<DisplayManager *>(lv_event_get_user_data(event));
@@ -74,10 +70,6 @@ void DisplayManager::SignalDrawCallback(lv_event_t *event)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// CreateSensorCard — builds one sensor card, returns the value label
-// ---------------------------------------------------------------------------
-
 lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
                                             const char *title,
                                             const char *unit)
@@ -118,12 +110,6 @@ lv_obj_t *DisplayManager::CreateSensorCard(lv_obj_t *parent,
 	return valueLabel;
 }
 
-// ---------------------------------------------------------------------------
-// CreateIcon — creates a Phosphor glyph label on screen, vertically centred
-//              on valueLabel. Must be called after lv_obj_update_layout()
-//              so valueLabel coordinates are valid.
-// ---------------------------------------------------------------------------
-
 void DisplayManager::CreateIcon(lv_obj_t *screen, uint32_t codepoint, lv_obj_t *valueLabel)
 {
 	lv_obj_t *icon = lv_label_create(screen);
@@ -142,10 +128,6 @@ void DisplayManager::CreateIcon(lv_obj_t *screen, uint32_t codepoint, lv_obj_t *
 	int32_t centreY = area.y1 + (area.y2 - area.y1) / 2;
 	lv_obj_set_pos(icon, 0, centreY - lv_font_get_line_height(&lv_font_phosphor_32) / 2);
 }
-
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
 
 CHIP_ERROR DisplayManager::Init()
 {
@@ -223,12 +205,8 @@ CHIP_ERROR DisplayManager::Init()
 	return CHIP_NO_ERROR;
 }
 
-// ---------------------------------------------------------------------------
-// State setters
-// ---------------------------------------------------------------------------
-
-void DisplayManager::UpdateMeasurements(int16_t temperatureHundredths,
-                                        uint16_t humidityHundredths)
+void DisplayManager::UpdateMeasurements(std::optional<int16_t>  temperatureHundredths,
+                                        std::optional<uint16_t> humidityHundredths)
 {
 	mCurrentTemperature = temperatureHundredths;
 	mCurrentHumidity    = humidityHundredths;
@@ -247,15 +225,11 @@ void DisplayManager::SetDecontaminationStatus(bool active, uint32_t elapsedSecon
 }
 
 void DisplayManager::SetSensorInfo(const char *secondaryName,
-                                    uint16_t secondaryHumidityHundredths)
+                                    std::optional<uint16_t> secondaryHumidityHundredths)
 {
 	mCurrentSecondarySensorName = secondaryName;
 	mCurrentSecondaryHumidity   = secondaryHumidityHundredths;
 }
-
-// ---------------------------------------------------------------------------
-// Refresh
-// ---------------------------------------------------------------------------
 
 void DisplayManager::RefreshDisplay()
 {
@@ -302,18 +276,26 @@ void DisplayManager::RefreshDisplay()
 
 void DisplayManager::DrawMeasurements()
 {
-	bool    neg               = (mCurrentTemperature < 0);
-	int16_t absValue          = neg ? -mCurrentTemperature : mCurrentTemperature;
-	int16_t temperatureTenths = (absValue + 5) / 10;
+	if (mCurrentTemperature.has_value()) {
+		int16_t value             = *mCurrentTemperature;
+		bool    neg               = (value < 0);
+		int16_t absValue          = neg ? -value : value;
+		int16_t temperatureTenths = (absValue + 5) / 10;
 
-	lv_label_set_text_fmt(mValueTemperature, "%s%d.%01d",
-	                      neg ? "-" : "",
-	                      temperatureTenths / 10, temperatureTenths % 10);
+		lv_label_set_text_fmt(mValueTemperature, "%s%d.%01d",
+		                      neg ? "-" : "",
+		                      temperatureTenths / 10, temperatureTenths % 10);
+	} else {
+		lv_label_set_text(mValueTemperature, "--.-");
+	}
 
-	uint16_t humidityTenths = (mCurrentHumidity + 10) / 20 * 2; // 0.2% steps
-	lv_label_set_text_fmt(mValueHumidity, "%d.%01d",
-	                      humidityTenths / 10, humidityTenths % 10);
-
+	if (mCurrentHumidity.has_value()) {
+		uint16_t humidityTenths = (*mCurrentHumidity + 10) / 20 * 2; // 0.2% steps
+		lv_label_set_text_fmt(mValueHumidity, "%d.%01d",
+		                      humidityTenths / 10, humidityTenths % 10);
+	} else {
+		lv_label_set_text(mValueHumidity, "--.-");
+	}
 }
 
 void DisplayManager::DrawSignalBars()
@@ -330,11 +312,11 @@ void DisplayManager::DrawSensorInfo()
 
 	const bool secondaryValid =
 		mCurrentSecondarySensorName != nullptr &&
-		mCurrentSecondaryHumidity   != UINT16_MAX &&
-		mCurrentHumidity            != UINT16_MAX;
+		mCurrentSecondaryHumidity.has_value() &&
+		mCurrentHumidity.has_value();
 	if (secondaryValid) {
-		int32_t diff = static_cast<int32_t>(mCurrentSecondaryHumidity) -
-		               static_cast<int32_t>(mCurrentHumidity);
+		int32_t diff = static_cast<int32_t>(*mCurrentSecondaryHumidity) -
+		               static_cast<int32_t>(*mCurrentHumidity);
 		int32_t deltaTenths = (diff >= 0) ? (diff + 5) / 10 : (diff - 5) / 10;
 		int32_t absTenths = (deltaTenths < 0) ? -deltaTenths : deltaTenths;
 		lv_obj_remove_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);

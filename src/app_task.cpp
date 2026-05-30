@@ -12,8 +12,6 @@
 #include "clusters/identify.h"
 #include "lib/core/CHIPError.h"
 
-#include <app-common/zap-generated/attributes/Accessors.h>
-
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/drivers/sensor/sht4x.h>
@@ -21,8 +19,7 @@
 
 #ifdef CONFIG_DISPLAY
 #include "display_manager.h"
-#include <openthread/link.h>
-#include <openthread/thread.h>
+#include "thread_status.h"
 #endif
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
@@ -33,9 +30,6 @@ using namespace ::chip::DeviceLayer;
 
 namespace
 {
-constexpr chip::EndpointId kTemperatureSensorEndpointId = 1;
-constexpr chip::EndpointId kHumiditySensorEndpointId = 2;
-
 #ifdef CONFIG_DT_HAS_TI_HDC302X_ENABLED
 const device *sHdc302xSensorDev = DEVICE_DT_GET_ONE(ti_hdc302x);
 #else
@@ -47,8 +41,8 @@ const device *sSht4xSensorDev = DEVICE_DT_GET_ONE(sensirion_sht4x);
 const device *sSht4xSensorDev = nullptr;
 #endif
 
-Nrf::Matter::IdentifyCluster sIdentifyTemperatureCluster(kTemperatureSensorEndpointId);
-Nrf::Matter::IdentifyCluster sIdentifyHumidityCluster(kHumiditySensorEndpointId);
+Nrf::Matter::IdentifyCluster sIdentifyTemperatureCluster(MatterReporter::kTemperatureEndpointId);
+Nrf::Matter::IdentifyCluster sIdentifyHumidityCluster(MatterReporter::kHumidityEndpointId);
 
 #ifdef CONFIG_CHIP_ICD_UAT_SUPPORT
 #define UAT_BUTTON_MASK DK_BTN3_MSK
@@ -148,65 +142,6 @@ void AppTask::HandleDecontaminationButton()
 	mDecontaminationController.Start();
 }
 
-#ifdef CONFIG_DISPLAY
-std::tuple<bool, uint8_t> AppTask::GetThreadConnectivity()
-{
-	bool connected = false;
-	uint8_t lqi = 0;
-	ThreadStackMgr().LockThreadStack();
-	otInstance *ot = ThreadStackMgrImpl().OTInstance();
-	const otDeviceRole role = otThreadGetDeviceRole(ot);
-	connected = (role != OT_DEVICE_ROLE_DISABLED && role != OT_DEVICE_ROLE_DETACHED);
-	if (role == OT_DEVICE_ROLE_CHILD) {
-		int8_t rssi = 0;
-		if (otThreadGetParentAverageRssi(ot, &rssi) == OT_ERROR_NONE) {
-			lqi = otLinkConvertRssToLinkQuality(ot, rssi);
-		}
-	} else if (IS_ENABLED(CONFIG_OPENTHREAD_FTD) &&
-		   (role == OT_DEVICE_ROLE_ROUTER || role == OT_DEVICE_ROLE_LEADER)) {
-		otNeighborInfoIterator iter = OT_NEIGHBOR_INFO_ITERATOR_INIT;
-		otNeighborInfo info;
-		while (otThreadGetNextNeighborInfo(ot, &iter, &info) == OT_ERROR_NONE) {
-			if (info.mLinkQualityIn > lqi) {
-				lqi = info.mLinkQualityIn;
-			}
-		}
-	}
-	ThreadStackMgr().UnlockThreadStack();
-	return {connected, lqi};
-}
-#endif
-
-void AppTask::UpdateTemperatureClusterState(int16_t newValue)
-{
-	if (newValue > mTemperatureMeasurementAttributeMaxValue ||
-		newValue < mTemperatureMeasurementAttributeMinValue) {
-		/* Read value exceeds permitted limits, so assign invalid value code to it. */
-		newValue = Sensor::kTemperatureInvalid;
-	}
-
-	Protocols::InteractionModel::Status status = Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Set(
-		kTemperatureSensorEndpointId, newValue);
-	if (status != Protocols::InteractionModel::Status::Success) {
-		LOG_ERR("Updating temperature measurement %x", to_underlying(status));
-	}
-}
-
-void AppTask::UpdateRelativeHumidityClusterState(uint16_t newValue)
-{
-	if (newValue > mHumidityMeasurementAttributeMaxValue ||
-		newValue < mHumidityMeasurementAttributeMinValue) {
-		/* Read value exceeds permitted limits, so assign invalid value code to it. */
-		newValue = Sensor::kHumidityInvalid;
-	}
-
-	Protocols::InteractionModel::Status status = Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Set(
-		kHumiditySensorEndpointId, newValue);
-	if (status != Protocols::InteractionModel::Status::Success) {
-		LOG_ERR("Updating relative humidity measurement %x", to_underlying(status));
-	}
-}
-
 void AppTask::UpdateMeasurements()
 {
 	if (mDecontaminationController.Active()) {
@@ -228,10 +163,8 @@ void AppTask::UpdateMeasurements()
 	}
 	auto [primaryTemperature, primaryHumidity] = primaryResult.value();
 
-	uint16_t secondaryHumidity = Sensor::kHumidityInvalid;
-	const char *secondaryName = nullptr;
+	std::optional<uint16_t> secondaryHumidity;
 	if (mSecondarySensor != nullptr) {
-		secondaryName = mSecondarySensor->name;
 		auto secondaryResult = mSecondarySensor->Read();
 		if (secondaryResult) {
 			secondaryHumidity = secondaryResult.value().humidity;
@@ -253,8 +186,7 @@ void AppTask::UpdateMeasurements()
 		}
 	}
 
-	UpdateTemperatureClusterState(primaryTemperature);
-	UpdateRelativeHumidityClusterState(primaryHumidity);
+	mMatterReporter.Publish(primaryTemperature, primaryHumidity);
 
 #ifdef CONFIG_DISPLAY
 	auto [connected, lqi] = GetThreadConnectivity();
@@ -262,7 +194,9 @@ void AppTask::UpdateMeasurements()
 	DisplayManager::Instance().UpdateSignalStrength(connected, lqi);
 
 	DisplayManager::Instance().UpdateMeasurements(primaryTemperature, primaryHumidity);
-	DisplayManager::Instance().SetSensorInfo(secondaryName, secondaryHumidity);
+	if (mSecondarySensor != nullptr) {
+		DisplayManager::Instance().SetSensorInfo(mSecondarySensor->name, secondaryHumidity);
+	}
 	DisplayManager::Instance().RefreshDisplay();
 #else
 	clusterUpdateLED.Set(false);
@@ -374,46 +308,10 @@ CHIP_ERROR AppTask::ConfigureHdc302xDefaults()
 	return CHIP_NO_ERROR;
 }
 
-namespace {
-template <auto GetFn, typename T>
-CHIP_ERROR LoadAttributeBound(chip::EndpointId endpoint, const char *what, T &out)
-{
-	DataModel::Nullable<T> value;
-	Protocols::InteractionModel::Status status = GetFn(endpoint, value);
-	if (status != Protocols::InteractionModel::Status::Success || value.IsNull()) {
-		LOG_ERR("Failed to get %s %x", what, to_underlying(status));
-		return CHIP_ERROR_INCORRECT_STATE;
-	}
-	out = value.Value();
-	return CHIP_NO_ERROR;
-}
-} /* namespace */
-
-CHIP_ERROR AppTask::ConfigureMeasurementValidityRanges()
-{
-	namespace TempAttr = Clusters::TemperatureMeasurement::Attributes;
-	namespace HumAttr  = Clusters::RelativeHumidityMeasurement::Attributes;
-
-	ReturnErrorOnFailure(LoadAttributeBound<TempAttr::MinMeasuredValue::Get>(
-		kTemperatureSensorEndpointId, "temperature measurement min value",
-		mTemperatureMeasurementAttributeMinValue));
-	ReturnErrorOnFailure(LoadAttributeBound<TempAttr::MaxMeasuredValue::Get>(
-		kTemperatureSensorEndpointId, "temperature measurement max value",
-		mTemperatureMeasurementAttributeMaxValue));
-	ReturnErrorOnFailure(LoadAttributeBound<HumAttr::MinMeasuredValue::Get>(
-		kHumiditySensorEndpointId, "humidity measurement min value",
-		mHumidityMeasurementAttributeMinValue));
-	ReturnErrorOnFailure(LoadAttributeBound<HumAttr::MaxMeasuredValue::Get>(
-		kHumiditySensorEndpointId, "humidity measurement max value",
-		mHumidityMeasurementAttributeMaxValue));
-
-	return CHIP_NO_ERROR;
-}
-
 CHIP_ERROR AppTask::StartApp()
 {
 	ReturnErrorOnFailure(Init());
-	ReturnErrorOnFailure(ConfigureMeasurementValidityRanges());
+	ReturnErrorOnFailure(mMatterReporter.LoadValidityRanges());
 
 	k_timer_init(
 		&sMeasurementsTimer, [](k_timer *) { Nrf::PostTask([] { MeasurementsTimerHandler(); }); }, nullptr);

@@ -20,8 +20,8 @@ class MovingAverage {
 public:
 	explicit MovingAverage(int32_t alpha32) : mAlpha32(alpha32) {}
 
-	// Returns the updated smoothed value.
-	// On the first call the state is initialised to newSample (no blending from zero).
+	/// Returns the updated smoothed value.
+	/// On the first call the state is initialised to newSample (no blending from zero).
 	T update(T newSample)
 	{
 		if (mSmoothed == INT32_MIN) {
@@ -33,7 +33,7 @@ public:
 		return static_cast<T>(mSmoothed);
 	}
 
-	// Discards the smoothed state so the next update() re-initialises from that sample.
+	/// Discards the smoothed state so the next update() re-initialises from that sample.
 	void reset() { mSmoothed = INT32_MIN; }
 
 private:

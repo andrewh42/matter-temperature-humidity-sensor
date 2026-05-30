@@ -3,7 +3,6 @@
  */
 
 #include "hdc302x_humidity_calibrator.h"
-#include "sensor.h"
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/ti_hdc302x.h>
@@ -66,13 +65,14 @@ int AbsoluteHundredths(int32_t value)
 }
 } /* namespace */
 
-bool HDC302xHumidityCalibrator::Apply(uint16_t referenceHundredths, uint16_t targetHundredths)
+bool HDC302xHumidityCalibrator::Apply(std::optional<uint16_t> referenceHundredths,
+                                      std::optional<uint16_t> targetHundredths)
 {
 	if (mDevice == nullptr) {
 		return false;
 	}
 
-	if (referenceHundredths == Sensor::kHumidityInvalid || targetHundredths == Sensor::kHumidityInvalid) {
+	if (!referenceHundredths || !targetHundredths) {
 		LOG_WRN("Humidity calibration skipped: readings unavailable");
 		return false;
 	}
@@ -90,8 +90,8 @@ bool HDC302xHumidityCalibrator::Apply(uint16_t referenceHundredths, uint16_t tar
 	}
 
 	const int32_t existingHundredths = existing.val1 * 100 + existing.val2 / 10000;
-	const int32_t deltaHundredths    = static_cast<int32_t>(referenceHundredths)
-	                                 - static_cast<int32_t>(targetHundredths);
+	const int32_t deltaHundredths    = static_cast<int32_t>(*referenceHundredths)
+	                                 - static_cast<int32_t>(*targetHundredths);
 	const int32_t newHundredths      = existingHundredths + deltaHundredths;
 
 	if (newHundredths > kMaxAbsOffsetHundredths || newHundredths < -kMaxAbsOffsetHundredths) {

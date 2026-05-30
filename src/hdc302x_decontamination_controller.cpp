@@ -11,17 +11,13 @@
 #include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/logging/log.h>
 
+#include <optional>
+
 #ifdef CONFIG_DISPLAY
 #include "display_manager.h"
 #endif
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
-
-namespace
-{
-constexpr int16_t  kTemperatureInvalidSentinel = 0x8000;
-constexpr uint16_t kHumidityInvalidSentinel    = 0xffff;
-} /* namespace */
 
 void HDC302xDecontaminationController::Init(const device *hdc302xDevice,
                                             Callback onStarted,
@@ -137,15 +133,15 @@ void HDC302xDecontaminationController::RunCycle()
 		return;
 	}
 
+	std::optional<int16_t> temperatureHundredths;
 	struct sensor_value temperature;
-	int16_t temperatureHundredths = kTemperatureInvalidSentinel;
 	if (sensor_channel_get(mDevice, SENSOR_CHAN_AMBIENT_TEMP, &temperature) == 0) {
 		temperatureHundredths =
 			static_cast<int16_t>(temperature.val1 * 100 + temperature.val2 / 10000);
 	}
 
+	std::optional<uint16_t> humidityHundredths;
 	struct sensor_value humidity;
-	uint16_t humidityHundredths = kHumidityInvalidSentinel;
 	if (sensor_channel_get(mDevice, SENSOR_CHAN_HUMIDITY, &humidity) == 0) {
 		humidityHundredths =
 			static_cast<uint16_t>(humidity.val1 * 100 + humidity.val2 / 10000);
@@ -153,10 +149,12 @@ void HDC302xDecontaminationController::RunCycle()
 
 	const int64_t elapsedMs = k_uptime_get() - mStartUptimeMs;
 
+	const int16_t  loggedTemperature = temperatureHundredths.value_or(0);
+	const uint16_t loggedHumidity    = humidityHundredths.value_or(0);
 	LOG_DBG("Decon t=%lld.%03llds  T=%d.%02dC  RH=%u.%02u%%",
 	        elapsedMs / 1000, elapsedMs % 1000,
-	        temperatureHundredths / 100, temperatureHundredths % 100,
-	        humidityHundredths / 100, humidityHundredths % 100);
+	        loggedTemperature / 100, loggedTemperature % 100,
+	        loggedHumidity / 100, loggedHumidity % 100);
 
 #ifdef CONFIG_DISPLAY
 	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
@@ -165,9 +163,8 @@ void HDC302xDecontaminationController::RunCycle()
 	DisplayManager::Instance().RefreshDisplay();
 #endif
 
-	const bool humidityValid = (humidityHundredths != kHumidityInvalidSentinel);
 	if (elapsedMs >= kMaxDurationMs ||
-	    (humidityValid && humidityHundredths < kHumidityExitHundredths)) {
+	    (humidityHundredths && *humidityHundredths < kHumidityExitHundredths)) {
 		Stop();
 	}
 }

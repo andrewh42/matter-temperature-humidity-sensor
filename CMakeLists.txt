@@ -35,11 +35,13 @@ target_sources(app PRIVATE
   src/hdc302x_decontamination_controller.cpp
   src/hdc302x_humidity_calibrator.cpp
   src/main.cpp
+  src/matter_reporter.cpp
   src/sensor.cpp
 )
 
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/display_manager.cpp
+  src/thread_status.cpp
   src/fonts/lv_font_splinesans_medium_20.c
   src/fonts/lv_font_splinesans_bold_72.c
   src/fonts/lv_font_phosphor_32.c

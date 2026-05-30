@@ -9,15 +9,11 @@
 #include "board/board.h"
 #include "hdc302x_decontamination_controller.h"
 #include "hdc302x_humidity_calibrator.h"
+#include "matter_reporter.h"
 #include "sensor.h"
 
 #include <platform/CHIPDeviceLayer.h>
-#include <tuple>
 
-#ifdef CONFIG_DISPLAY
-#include <openthread/link.h>
-#include <openthread/thread.h>
-#endif
 
 struct Identify;
 
@@ -49,19 +45,12 @@ private:
 
 	bool    mCalibrationRequested        = false;
 
-	CHIP_ERROR ConfigureMeasurementValidityRanges();
-	int16_t mTemperatureMeasurementAttributeMinValue = 0;
-	int16_t mTemperatureMeasurementAttributeMaxValue = 0;
-	uint16_t mHumidityMeasurementAttributeMinValue = 0;
-	uint16_t mHumidityMeasurementAttributeMaxValue = 0;
+	MatterReporter mMatterReporter;
 
 	Sensor  mHdc302xSensor;
 	Sensor  mSht4xSensor;
 	Sensor *mPrimarySensor   = nullptr;
 	Sensor *mSecondarySensor = nullptr;
-
-	void UpdateTemperatureClusterState(int16_t temperatureHundredths);
-	void UpdateRelativeHumidityClusterState(uint16_t humidityHundredths);
 
 	void TogglePrimarySensor();
 
@@ -71,10 +60,6 @@ private:
 	CHIP_ERROR ConfigureHdc302xDefaults();
 
 	static void MeasurementsTimerHandler();
-
-#ifdef CONFIG_DISPLAY
-	std::tuple<bool, uint8_t> GetThreadConnectivity();
-#endif
 
 	static void ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChanged);
 
