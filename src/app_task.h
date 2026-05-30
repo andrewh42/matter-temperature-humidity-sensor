@@ -7,8 +7,10 @@
 #pragma once
 
 #include "board/board.h"
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 #include "hdc302x_decontamination_controller.h"
 #include "hdc302x_humidity_calibrator.h"
+#endif
 #include "matter_reporter.h"
 #include "sensor.h"
 
@@ -36,14 +38,12 @@ private:
 	static constexpr uint32_t kMeasurementsInitialMs = 5'000;
 	static constexpr uint32_t kMeasurementsIntervalMs = 60'000;
 
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 	HDC302xDecontaminationController mDecontaminationController;
 	void HandleDecontaminationButton();
-	void OnDecontaminationStarted();
-	void OnDecontaminationStopped();
-	static void DecontaminationStartedCallback(void *context);
-	static void DecontaminationStoppedCallback(void *context);
 
 	bool    mCalibrationRequested        = false;
+#endif
 
 	MatterReporter mMatterReporter;
 
@@ -54,10 +54,10 @@ private:
 
 	void TogglePrimarySensor();
 
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 	void RequestHumidityCalibration();
 	HDC302xHumidityCalibrator mHumidityCalibrator;
-
-	CHIP_ERROR ConfigureHdc302xDefaults();
+#endif
 
 	static void MeasurementsTimerHandler();
 

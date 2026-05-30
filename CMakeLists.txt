@@ -32,11 +32,15 @@ target_include_directories(app PRIVATE
 
 target_sources(app PRIVATE
   src/app_task.cpp
-  src/hdc302x_decontamination_controller.cpp
-  src/hdc302x_humidity_calibrator.cpp
+  src/hdc302x_configuration.cpp
   src/main.cpp
   src/matter_reporter.cpp
   src/sensor.cpp
+)
+
+target_sources_ifdef(CONFIG_APP_HDC302X_MAINTENANCE_FEATURES app PRIVATE
+  src/hdc302x_decontamination_controller.cpp
+  src/hdc302x_humidity_calibrator.cpp
 )
 
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE

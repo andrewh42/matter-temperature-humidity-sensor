@@ -19,15 +19,9 @@
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
-void HDC302xDecontaminationController::Init(const device *hdc302xDevice,
-                                            Callback onStarted,
-                                            Callback onStopped,
-                                            void *callbackContext)
+void HDC302xDecontaminationController::Init(const device *hdc302xDevice)
 {
-	mDevice          = hdc302xDevice;
-	mOnStarted       = onStarted;
-	mOnStopped       = onStopped;
-	mCallbackContext = callbackContext;
+	mDevice = hdc302xDevice;
 
 	k_timer_init(
 		&mTimer,
@@ -74,10 +68,6 @@ void HDC302xDecontaminationController::Start()
 		return;
 	}
 
-	if (mOnStarted != nullptr) {
-		mOnStarted(mCallbackContext);
-	}
-
 	SetHeater(kHeaterLevel);
 
 	mStartUptimeMs = k_uptime_get();
@@ -113,10 +103,6 @@ void HDC302xDecontaminationController::Stop()
 	DisplayManager::Instance().SetDecontaminationStatus(false, 0);
 	DisplayManager::Instance().RefreshDisplay();
 #endif
-
-	if (mOnStopped != nullptr) {
-		mOnStopped(mCallbackContext);
-	}
 
 	LOG_INF("Decontamination stopped");
 }

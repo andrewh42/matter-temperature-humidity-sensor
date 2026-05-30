@@ -4,8 +4,9 @@
 
 #include "hdc302x_humidity_calibrator.h"
 
+#include "hdc302x_configuration.h"
+
 #include <zephyr/drivers/sensor.h>
-#include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
@@ -20,31 +21,13 @@ class ManualMeasurementScope {
 public:
 	explicit ManualMeasurementScope(const device *device) : mDevice(device)
 	{
-		const struct sensor_value manual = {.val1 = HDC302X_SENSOR_MEAS_INTERVAL_MANUAL,
-		                                    .val2 = 0};
-		const int result = sensor_attr_set(mDevice, SENSOR_CHAN_ALL,
-		                                   (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
-		                                   &manual);
-		if (result != 0) {
-			LOG_ERR("Calibration: failed to enter HDC302x manual mode (%d)", result);
-			return;
-		}
-		mEntered = true;
+		mEntered = ConfigureHdc302xManualMeasurementMode(mDevice);
 	}
 
 	~ManualMeasurementScope()
 	{
-		if (!mEntered) {
-			return;
-		}
-		const struct sensor_value autoMeasurement = {.val1 = HDC302X_SENSOR_MEAS_INTERVAL_0_5,
-		                                             .val2 = 0};
-		const int result = sensor_attr_set(mDevice, SENSOR_CHAN_ALL,
-		                                   (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
-		                                   &autoMeasurement);
-		if (result != 0) {
-			LOG_ERR("Calibration: failed to re-enable HDC302x auto-measurement (%d) -- sensor stuck in manual mode",
-			        result);
+		if (mEntered) {
+			ConfigureHdc302xAutomaticMeasurementMode(mDevice);
 		}
 	}
 

@@ -4,6 +4,8 @@
 
 #pragma once
 
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
+
 #include <cstdint>
 #include <optional>
 
@@ -34,3 +36,5 @@ private:
 
 	const device *mDevice = nullptr;
 };
+
+#endif /* CONFIG_APP_HDC302X_MAINTENANCE_FEATURES */

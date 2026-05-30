@@ -4,6 +4,8 @@
 
 #pragma once
 
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
+
 #include <zephyr/kernel.h>
 #include <cstdint>
 
@@ -15,16 +17,11 @@ struct device;
 /// supplied callbacks so the heater readings do not pollute the Matter cluster.
 class HDC302xDecontaminationController {
 public:
-	using Callback = void (*)(void *context);
-
 	HDC302xDecontaminationController() = default;
 	HDC302xDecontaminationController(const HDC302xDecontaminationController &) = delete;
 	HDC302xDecontaminationController &operator=(const HDC302xDecontaminationController &) = delete;
 
-	void Init(const device *hdc302xDevice,
-	          Callback onStarted,
-	          Callback onStopped,
-	          void *callbackContext);
+	void Init(const device *hdc302xDevice);
 
 	void Start();
 	void Stop();
@@ -43,12 +40,11 @@ private:
 	void RunCycle();
 	void SetHeater(int32_t level);
 
-	const device *mDevice          = nullptr;
-	Callback      mOnStarted       = nullptr;
-	Callback      mOnStopped       = nullptr;
-	void         *mCallbackContext = nullptr;
+	const device *mDevice = nullptr;
 
 	bool    mActive        = false;
 	int64_t mStartUptimeMs = 0;
 	k_timer mTimer{};
 };
+
+#endif /* CONFIG_APP_HDC302X_MAINTENANCE_FEATURES */

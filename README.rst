@@ -82,19 +82,24 @@ Open this repo in Visual Studio Code and follow these steps:
 
     For the Nordic nRF5340 DK (with HDC302x and e-paper display enabled):
     ```sh
-    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="app-hdc302x.conf;epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;epaper.overlay"
+    west build -p -d build-nrf5340dk-hdc302x -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;epaper.overlay"
     ```
 
-    For the Nordic nRF5340 DK (with SHT4x and e-paper display enabled):
+    For the Nordic nRF5340 DK (with HDC302x and SHT4x and e-paper display enabled):
     ```sh
-    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-sht4x.overlay;epaper.overlay"
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;app-sht4x.overlay;epaper.overlay"
     ```
 
-    For the Seeed XIAO nRF54L15:
+    For the Nordic nRF5340 DK (with HDC302x and SHT4x and e-paper display enabled PLUS humidity calibration and decontamination features):
+    ```sh
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;app-sht4x.overlay;epaper.overlay"
+    ```
+
+    For the Seeed XIAO nRF54L15 (with HDC302x and e-paper display enabled):
     ```sh
     west build -p -d build-xiao -b xiao_nrf54l15/nrf54l15/cpuapp -- \
-      -DCONFIG_CHIP_DFU_OVER_BT_SMP=y -DFILE_SUFFIX=internal \
-      -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app.overlay;epaper.overlay"
+      -DFILE_SUFFIX=internal \
+      -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;epaper-xiao.overlay"
     ```
 
 4. Flash the software using the nRF Connect flash action.

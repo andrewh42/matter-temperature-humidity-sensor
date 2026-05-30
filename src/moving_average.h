@@ -37,6 +37,6 @@ public:
 	void reset() { mSmoothed = INT32_MIN; }
 
 private:
-	const int32_t mAlpha32;
+	int32_t mAlpha32;
 	int32_t mSmoothed = INT32_MIN;
 };

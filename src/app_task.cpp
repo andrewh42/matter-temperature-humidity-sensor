@@ -10,10 +10,10 @@
 #include "app/task_executor.h"
 #include "board/board.h"
 #include "clusters/identify.h"
+#include "hdc302x_configuration.h"
 #include "lib/core/CHIPError.h"
 
 #include <zephyr/drivers/sensor.h>
-#include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/drivers/sensor/sht4x.h>
 #include <zephyr/logging/log.h>
 
@@ -58,17 +58,19 @@ void AppTask::ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChan
 	}
 #endif
 
-	if ((DK_BTN1_MSK & state & hasChanged)) {
-		Nrf::PostTask([] { Instance().RequestHumidityCalibration(); });
-	}
-
 	if ((DK_BTN2_MSK & state & hasChanged)) {
 		Nrf::PostTask([] { Instance().TogglePrimarySensor(); });
+	}
+
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
+	if ((DK_BTN1_MSK & state & hasChanged)) {
+		Nrf::PostTask([] { Instance().RequestHumidityCalibration(); });
 	}
 
 	if ((DK_BTN4_MSK & state & hasChanged)) {
 		Nrf::PostTask([] { Instance().HandleDecontaminationButton(); });
 	}
+#endif
 }
 
 void AppTask::LEDStateHandler()
@@ -108,27 +110,7 @@ void AppTask::MeasurementsTimerHandler()
 	Instance().UpdateMeasurements();
 }
 
-void AppTask::DecontaminationStartedCallback(void *context)
-{
-	static_cast<AppTask *>(context)->OnDecontaminationStarted();
-}
-
-void AppTask::DecontaminationStoppedCallback(void *context)
-{
-	static_cast<AppTask *>(context)->OnDecontaminationStopped();
-}
-
-void AppTask::OnDecontaminationStarted()
-{
-	k_timer_stop(&sMeasurementsTimer);
-}
-
-void AppTask::OnDecontaminationStopped()
-{
-	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsIntervalMs),
-	              K_MSEC(kMeasurementsIntervalMs));
-}
-
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 void AppTask::HandleDecontaminationButton()
 {
 	if (mDecontaminationController.Active()) {
@@ -141,12 +123,15 @@ void AppTask::HandleDecontaminationButton()
 	}
 	mDecontaminationController.Start();
 }
+#endif
 
 void AppTask::UpdateMeasurements()
 {
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 	if (mDecontaminationController.Active()) {
 		return;
 	}
+#endif
 
 #ifndef CONFIG_DISPLAY
 	Nrf::LEDWidget &clusterUpdateLED = Nrf::GetBoard().GetLED(Nrf::DeviceLeds::LED3);
@@ -173,6 +158,7 @@ void AppTask::UpdateMeasurements()
 		}
 	}
 
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 	if (mCalibrationRequested) {
 		mCalibrationRequested = false;
 		const bool sht4xPrimary = (mPrimarySensor == &mSht4xSensor);
@@ -185,6 +171,7 @@ void AppTask::UpdateMeasurements()
 			}
 		}
 	}
+#endif
 
 	mMatterReporter.Publish(primaryTemperature, primaryHumidity);
 
@@ -205,10 +192,12 @@ void AppTask::UpdateMeasurements()
 
 void AppTask::TogglePrimarySensor()
 {
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 	if (mDecontaminationController.Active()) {
 		LOG_WRN("Sensor toggle ignored during decontamination");
 		return;
 	}
+#endif
 	if (mSecondarySensor == nullptr) {
 		LOG_WRN("Sensor toggle requires both sensors in device tree");
 		return;
@@ -221,11 +210,13 @@ void AppTask::TogglePrimarySensor()
 	UpdateMeasurements();
 }
 
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 void AppTask::RequestHumidityCalibration()
 {
 	mCalibrationRequested = true;
 	LOG_INF("Humidity calibration requested (will apply on next measurement tick)");
 }
+#endif
 
 CHIP_ERROR AppTask::Init()
 {
@@ -244,68 +235,33 @@ CHIP_ERROR AppTask::Init()
 	ReturnErrorOnFailure(sIdentifyTemperatureCluster.Init());
 	ReturnErrorOnFailure(sIdentifyHumidityCluster.Init());
 
-	if (sHdc302xSensorDev == nullptr && sSht4xSensorDev == nullptr) {
-		LOG_ERR("No supported sensor found in device tree");
-		return chip::System::MapErrorZephyr(-ENODEV);
-	}
+	mHdc302xSensor = Sensor(sHdc302xSensorDev, "HDC302x");
+	mSht4xSensor   = Sensor(sSht4xSensorDev,   "SHT4x");
 
-	const device *hdc302xDev = sHdc302xSensorDev;
-	const device *sht4xDev   = sSht4xSensorDev;
-
-	if (hdc302xDev != nullptr && !device_is_ready(hdc302xDev)) {
-		LOG_WRN("HDC302x sensor device not ready; ignoring");
-		hdc302xDev = nullptr;
-	}
-	if (sht4xDev != nullptr && !device_is_ready(sht4xDev)) {
-		LOG_WRN("SHT4x sensor device not ready; ignoring");
-		sht4xDev = nullptr;
-	}
-
-	if (hdc302xDev == nullptr && sht4xDev == nullptr) {
-		LOG_ERR("No sensor device ready");
-		return chip::System::MapErrorZephyr(-ENODEV);
-	}
-
-	mHdc302xSensor.dev  = hdc302xDev;
-	mHdc302xSensor.name = "HDC302x";
-	mSht4xSensor.dev    = sht4xDev;
-	mSht4xSensor.name   = "SHT4x";
-
-	if (hdc302xDev != nullptr) {
+	if (mHdc302xSensor.IsAvailable()) {
 		mPrimarySensor   = &mHdc302xSensor;
-		mSecondarySensor = (sht4xDev != nullptr) ? &mSht4xSensor : nullptr;
-	} else {
+		mSecondarySensor = mSht4xSensor.IsAvailable() ? &mSht4xSensor : nullptr;
+
+		if (!ConfigureHdc302xAutomaticMeasurementMode(mHdc302xSensor.dev)) {
+			return CHIP_ERROR_INTERNAL;
+		}
+#ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
+		mHumidityCalibrator.Init(mHdc302xSensor.dev);
+		mDecontaminationController.Init(mHdc302xSensor.dev);
+#endif
+	} else if (mSht4xSensor.IsAvailable()) {
 		mPrimarySensor   = &mSht4xSensor;
 		mSecondarySensor = nullptr;
+	} else {
+		LOG_ERR("No sensor device available");
+		return chip::System::MapErrorZephyr(-ENODEV);
 	}
-
-	ReturnErrorOnFailure(ConfigureHdc302xDefaults());
-
-	mHumidityCalibrator.Init(mHdc302xSensor.dev);
 
 #ifdef CONFIG_DISPLAY
 	ReturnErrorOnFailure(DisplayManager::Instance().Init());
 #endif
 
 	return Nrf::Matter::StartServer();
-}
-
-CHIP_ERROR AppTask::ConfigureHdc302xDefaults()
-{
-	if (!mHdc302xSensor.IsAvailable()) {
-		return CHIP_NO_ERROR;
-	}
-
-	const struct sensor_value integrationTime = {
-		.val1 = static_cast<int32_t>(HDC302X_SENSOR_MEAS_INTERVAL_0_5), .val2 = 0};
-	const int result = sensor_attr_set(mHdc302xSensor.dev, SENSOR_CHAN_ALL,
-	                                   (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
-	                                   &integrationTime); // 0.5 Hz
-	if (result != 0) {
-		LOG_ERR("Failed to set HDC302x integration time: %d", result);
-		return chip::System::MapErrorZephyr(result);
-	}
-	return CHIP_NO_ERROR;
 }
 
 CHIP_ERROR AppTask::StartApp()
@@ -316,11 +272,6 @@ CHIP_ERROR AppTask::StartApp()
 	k_timer_init(
 		&sMeasurementsTimer, [](k_timer *) { Nrf::PostTask([] { MeasurementsTimerHandler(); }); }, nullptr);
 	k_timer_start(&sMeasurementsTimer, K_MSEC(kMeasurementsInitialMs), K_MSEC(kMeasurementsIntervalMs));
-
-	mDecontaminationController.Init(mHdc302xSensor.dev,
-	                                &AppTask::DecontaminationStartedCallback,
-	                                &AppTask::DecontaminationStoppedCallback,
-	                                this);
 
 	while (true) {
 		Nrf::DispatchNextTask();

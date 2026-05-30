@@ -4,10 +4,24 @@
 
 #include "sensor.h"
 
+#include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
+
+Sensor::Sensor(const device *device, const char *sensorName)
+	: name(sensorName)
+{
+	if (device == nullptr) {
+		return;
+	}
+	if (!device_is_ready(device)) {
+		LOG_WRN("%s sensor device not ready; ignoring", sensorName);
+		return;
+	}
+	dev = device;
+}
 
 tl::expected<Sensor::Readings, int> Sensor::Read()
 {

@@ -19,6 +19,13 @@ struct device;
 /// sensor (the one driving Matter cluster updates) is selected by holding a
 /// pointer to one of these and swapping which sensor is "primary" at runtime.
 struct Sensor {
+	Sensor() = default;
+
+	/// Wraps @p device with the readiness check: if @p device is null or
+	/// device_is_ready() returns false, the resulting Sensor reports
+	/// IsAvailable() == false and logs a warning.
+	Sensor(const device *device, const char *sensorName);
+
 	const device *dev  = nullptr;
 	const char   *name = nullptr;
 
