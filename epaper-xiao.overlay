@@ -1,0 +1,33 @@
+/ {
+	chosen {
+		zephyr,display = &ssd1681;
+	};
+
+	display_cs: display-cs {
+		compatible = "regulator-fixed";
+		regulator-name = "display-power";
+		enable-gpios = <&xiao_d 1 GPIO_ACTIVE_LOW>;
+		regulator-boot-on;
+	};
+
+	mipi_dbi: mipi-dbi-spi {
+		compatible = "zephyr,mipi-dbi-spi";
+		spi-dev = <&spi00>;
+		dc-gpios    = <&xiao_d 3 GPIO_ACTIVE_HIGH>; /* D3 */
+		reset-gpios = <&xiao_d 0 GPIO_ACTIVE_LOW>;  /* D0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ssd1681: ssd1681@0 {
+			compatible = "solomon,ssd1681";
+			mipi-max-frequency = <4000000>;
+			reg = <0>;
+			width = <200>;
+			height = <200>;
+			rotation = <180>;
+			busy-gpios = <&xiao_d 2 GPIO_ACTIVE_HIGH>; /* D2 */
+
+			partial {};
+		};
+	};
+};

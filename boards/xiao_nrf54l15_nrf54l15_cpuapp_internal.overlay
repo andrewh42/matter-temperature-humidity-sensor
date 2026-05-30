@@ -1,0 +1,80 @@
+/*
+ * Copyright (c) 2024 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/ {
+	chosen {
+		zephyr,flash-controller = &rram_controller; /* from boards/nordic/nrf54l15dk/nrf54l_05_10_15_cpuapp_common.dtsi */
+		zephyr,boot-mode = &boot_mode0;		    /* from boards/nordic/nrf54l15dk/nrf54l_05_10_15_cpuapp_common.dtsi */
+	};
+
+	aliases {
+		/* Use watchdog wdt31 as the application watchdog */
+		watchdog0 = &wdt31;
+	};
+};
+
+&led0 {
+	gpios = <&gpio2 0 GPIO_ACTIVE_LOW>; /* board default is incorrectly set as GPIO_ACTIVE_HIGH */
+};
+
+/* restore full RRAM and SRAM space - by default some parts are dedicated to FLRP */
+&cpuapp_rram {
+	reg = <0x0 DT_SIZE_K(1524)>;
+};
+
+&cpuapp_sram {
+	reg = <0x20000000 DT_SIZE_K(256)>;
+	ranges = <0x0 0x20000000 0x40000>;
+};
+
+&wdt31 {
+	status = "okay";
+};
+
+&uart21 {
+	status = "disabled";
+};
+
+&i2c30 {
+	status = "disabled";
+};
+
+/* only present on the XIAO Sense variant */
+&lsm6ds3tr_c {
+	status = "disabled";
+};
+
+/* begin: for compatibility with nRF5340-DK */
+
+// i2c1: &i2c22 {
+// 	status = "okay";
+// };
+
+/* end: for compatibility with nRF5340-DK */
+
+/* begin: from boards/nordic/nrf54l15dk/nrf54l_05_10_15_cpuapp_common.dtsi */
+&radio {
+	status = "okay";
+};
+
+&ieee802154 {
+	status = "okay";
+};
+
+&temp {
+	status = "okay";
+};
+
+&gpregret1 {
+	status = "okay";
+
+	boot_mode0: boot_mode@0 {
+		compatible = "zephyr,retention";
+		status = "okay";
+		reg = <0x0 0x1>;
+	};
+};
+/* end: from boards/nordic/nrf54l15dk/nrf54l_05_10_15_cpuapp_common.dtsi */

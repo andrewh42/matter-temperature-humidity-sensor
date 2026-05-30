@@ -69,6 +69,47 @@ using the following pin configuration:
 Include the epaper.conf configuration file in the build to enable support for this display.
 
 
+XIAO nRF54L15 wiring
+********************
+
+The Seeed XIAO nRF54L15 is an alternative supported target. The HDC302x is
+connected via I2C using the following pin configuration:
+
++----------------+--------------------+
+| HDC302x Signal | XIAO nRF54L15 Pin  |
++================+====================+
+| VCC            | 3V3                |
++----------------+--------------------+
+| GND            | GND                |
++----------------+--------------------+
+| SDA            | D4 (P1.10)         |
++----------------+--------------------+
+| SCL            | D5 (P1.11)         |
++----------------+--------------------+
+
+The e-paper display is connected via SPI using the following pin configuration:
+
++-----------------+--------------------+--------------+
+| E-paper Signal  | XIAO nRF54L15 Pin  | Ribbon cable |
++=================+====================+==============+
+| VCC             | 3V3                | Red          |
++-----------------+--------------------+--------------+
+| GND             | GND                | Brown        |
++-----------------+--------------------+--------------+
+| BUSY            | D2 (P1.06)         | Green        |
++-----------------+--------------------+--------------+
+| RST             | D0 (P1.04)         | Grey         |
++-----------------+--------------------+--------------+
+| DC              | D3 (P1.07)         | Blue         |
++-----------------+--------------------+--------------+
+| CS              | D1 (P1.05)         | Purple       |
++-----------------+--------------------+--------------+
+| MOSI            | D10 (P2.02)        | Orange       |
++-----------------+--------------------+--------------+
+| SCK             | D8 (P2.01)         | Yellow       |
++-----------------+--------------------+--------------+
+
+
 How to build the software
 *************************
 
@@ -99,7 +140,7 @@ Open this repo in Visual Studio Code and follow these steps:
     ```sh
     west build -p -d build-xiao -b xiao_nrf54l15/nrf54l15/cpuapp -- \
       -DFILE_SUFFIX=internal \
-      -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;epaper-xiao.overlay"
+      -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x-xiao.overlay;epaper-xiao.overlay"
     ```
 
 4. Flash the software using the nRF Connect flash action.
