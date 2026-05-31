@@ -47,13 +47,10 @@
 	status = "disabled";
 };
 
-/* begin: for compatibility with nRF5340-DK */
-
-// i2c1: &i2c22 {
-// 	status = "okay";
-// };
-
-/* end: for compatibility with nRF5340-DK */
+/* disable battery voltage monitoring (regulator-boot-off). change to regulator-boot-on if running on battery and monitoring voltage (ADC P1.14). */
+&vbat_pwr {
+	regulator-boot-off;
+};
 
 /* begin: from boards/nordic/nrf54l15dk/nrf54l_05_10_15_cpuapp_common.dtsi */
 &radio {

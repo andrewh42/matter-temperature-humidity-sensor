@@ -3,13 +3,6 @@
 		zephyr,display = &ssd1681;
 	};
 
-	display_cs: display-cs {
-		compatible = "regulator-fixed";
-		regulator-name = "display-power";
-		enable-gpios = <&xiao_d 1 GPIO_ACTIVE_LOW>;
-		regulator-boot-on;
-	};
-
 	mipi_dbi: mipi-dbi-spi {
 		compatible = "zephyr,mipi-dbi-spi";
 		spi-dev = <&spi00>;
@@ -30,4 +23,8 @@
 			partial {};
 		};
 	};
+};
+
+&spi00 {
+	cs-gpios = <&xiao_d 1 GPIO_ACTIVE_LOW>; /* D1 */
 };

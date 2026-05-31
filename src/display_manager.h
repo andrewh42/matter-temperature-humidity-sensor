@@ -46,7 +46,7 @@ private:
 	void DrawDecontamination();
 	void DrawSensorInfo();
 
-	static constexpr uint8_t kFullUpdateInterval = 100;
+	static constexpr uint8_t kFullUpdateInterval = 200;
 
 	const struct device *mDev        = nullptr;
 	bool                 mInitialized = false;
