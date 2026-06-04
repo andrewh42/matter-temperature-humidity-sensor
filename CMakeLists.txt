@@ -33,8 +33,10 @@ target_include_directories(app PRIVATE
 target_sources(app PRIVATE
   src/app_task.cpp
   src/hdc302x_configuration.cpp
+  src/io_worker.cpp
   src/main.cpp
   src/matter_reporter.cpp
+  src/measurement_worker.cpp
   src/sensor.cpp
 )
 

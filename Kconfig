@@ -28,8 +28,48 @@ config APP_HDC302X_MAINTENANCE_FEATURES
 	  decontamination cycle on the HDC302x. Disabling drops the calibrator
 	  and decontamination controller from the build entirely.
 
-config CHIP_ICD_SIT_SLOW_POLL_LIMIT
-	default 5000
+config APP_IO_WORKQUEUE_STACK_SIZE
+	int "Stack size for the dedicated I/O workqueue thread"
+	default 8192
+	help
+	  Stack size, in bytes, for the dedicated workqueue that runs slow
+	  synchronous I/O (sensor reads, e-paper refreshes) off the CHIP task.
+	  8 KiB matches the validated CHIP task stack which already carries the
+	  same workload today; trim with CONFIG_THREAD_ANALYZER once the
+	  high-water mark is known.
+
+config APP_IO_WORKQUEUE_PRIORITY
+	int "Thread priority for the dedicated I/O workqueue"
+	default 5
+	help
+	  Priority of the dedicated I/O workqueue thread. K_PRIO_PREEMPT(5)
+	  sits below the CHIP task (so radio responsiveness wins over display
+	  rendering) and above the cooperative system workqueue (so we do not
+	  share its priority).
+
+config DISPLAY_MANAGER_LOG_LEVEL
+	int "display_manager log level"
+	default 4
+	range 0 4
+	help
+	  Per-module log level for display_manager.
+	  0=off, 1=err, 2=wrn, 3=inf, 4=dbg.
+
+config IO_WORKER_LOG_LEVEL
+	int "io_worker log level"
+	default 3
+	range 0 4
+	help
+	  Per-module log level for io_worker.
+	  0=off, 1=err, 2=wrn, 3=inf, 4=dbg.
+
+config MEASUREMENT_WORKER_LOG_LEVEL
+	int "measurement_worker log level"
+	default 4
+	range 0 4
+	help
+	  Per-module log level for measurement_worker.
+	  0=off, 1=err, 2=wrn, 3=inf, 4=dbg.
 
 config CHIP_ICD_FAST_POLLING_INTERVAL
 	default 2000
