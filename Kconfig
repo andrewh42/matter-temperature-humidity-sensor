@@ -71,6 +71,14 @@ config MEASUREMENT_WORKER_LOG_LEVEL
 	  Per-module log level for measurement_worker.
 	  0=off, 1=err, 2=wrn, 3=inf, 4=dbg.
 
+config SENSOR_LOG_LEVEL
+	int "sensor log level"
+	default 4
+	range 0 4
+	help
+	  Per-module log level for sensor.
+	  0=off, 1=err, 2=wrn, 3=inf, 4=dbg.
+
 config CHIP_ICD_FAST_POLLING_INTERVAL
 	default 2000
 

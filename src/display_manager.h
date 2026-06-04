@@ -7,6 +7,7 @@
 #ifdef CONFIG_DISPLAY
 
 #include <zephyr/device.h>
+#include <zephyr/kernel.h>
 #include <lvgl.h>
 
 #include <optional>
@@ -29,6 +30,12 @@ public:
 	void RefreshDisplay();
 
 private:
+	/// Submitted to the IoWorker queue by Init(); thunks to InitOnWorker().
+	static void InitHandler(k_work *);
+
+	/// Runs the LVGL/SSD16XX bring-up on the IoWorker thread.
+	void InitOnWorker();
+
 	/// Custom LVGL draw callback for the signal-strength widget.
 	static void SignalDrawCallback(lv_event_t *event);
 
@@ -55,6 +62,7 @@ private:
 
 	const struct device *mDev   = nullptr;
 	State                mState = State::Uninitialised;
+	k_work               mInitWork{};
 	uint8_t              mPartialUpdateCount = 0;
 
 	std::optional<int16_t>  mCurrentTemperature;

@@ -6,6 +6,8 @@
 
 #include "display_manager.h"
 
+#include "io_worker.h"
+
 #include <zephyr/drivers/display.h>
 #include <zephyr/logging/log.h>
 
@@ -129,6 +131,17 @@ void DisplayManager::CreateIcon(lv_obj_t *screen, uint32_t codepoint, lv_obj_t *
 }
 
 void DisplayManager::Init()
+{
+	k_work_init(&mInitWork, InitHandler);
+	k_work_submit_to_queue(&IoWorker::Instance().Queue(), &mInitWork);
+}
+
+void DisplayManager::InitHandler(k_work *)
+{
+	Instance().InitOnWorker();
+}
+
+void DisplayManager::InitOnWorker()
 {
 	mDev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	if (!device_is_ready(mDev)) {

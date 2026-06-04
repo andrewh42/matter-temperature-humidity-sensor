@@ -8,7 +8,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
+LOG_MODULE_REGISTER(sensor, CONFIG_SENSOR_LOG_LEVEL);
 
 Sensor::Sensor(const device *device, const char *sensorName)
 	: name(sensorName)

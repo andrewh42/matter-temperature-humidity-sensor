@@ -112,15 +112,21 @@ CHIP_ERROR AppTask::Init()
 	ReturnErrorOnFailure(sIdentifyTemperatureCluster.Init());
 	ReturnErrorOnFailure(sIdentifyHumidityCluster.Init());
 
+	if (int err = IoWorker::Instance().Init(); err) {
+		return chip::System::MapErrorZephyr(err);
+	}
+
 #ifdef CONFIG_DISPLAY
+	/* DisplayManager::Init() submits the SSD16XX/LVGL bring-up to the
+	 * IoWorker, so the worker must already exist. FIFO ordering of the
+	 * IoWorker queue places this work ahead of the first measurement tick
+	 * armed in MeasurementWorker::Start(). */
 	DisplayManager::Instance().Init();
 #endif
 
 	ReturnErrorOnFailure(Nrf::Matter::StartServer());
 
-	if (int err = IoWorker::Instance().Init(); err) {
-		return chip::System::MapErrorZephyr(err);
-	}
+	ReturnErrorOnFailure(mMatterReporter.LoadValidityRanges());
 
 	if (int err = MeasurementWorker::Instance().Init(
 		[](std::optional<int16_t> t, std::optional<uint16_t> h) {
@@ -135,7 +141,7 @@ CHIP_ERROR AppTask::Init()
 CHIP_ERROR AppTask::StartApp()
 {
 	ReturnErrorOnFailure(Init());
-	ReturnErrorOnFailure(mMatterReporter.LoadValidityRanges());
+
 	MeasurementWorker::Instance().Start();
 
 	while (true) {
