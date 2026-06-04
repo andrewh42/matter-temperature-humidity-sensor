@@ -6,7 +6,6 @@
 
 #ifdef CONFIG_DISPLAY
 
-#include <lib/core/CHIPError.h>
 #include <zephyr/device.h>
 #include <lvgl.h>
 
@@ -20,7 +19,7 @@ public:
 		return sInstance;
 	}
 
-	CHIP_ERROR Init();
+	void Init();
 	void UpdateMeasurements(std::optional<int16_t>  temperatureHundredths,
 	                        std::optional<uint16_t> humidityHundredths);
 	void UpdateSignalStrength(bool connected, uint8_t lqi);
@@ -46,10 +45,16 @@ private:
 	void DrawDecontamination();
 	void DrawSensorInfo();
 
+	enum class State : uint8_t {
+		Ready         = 0, // 0 is chosen for Ready so the hot-path test in RefreshDisplay compiles to cbz/cbnz on Cortex-M.
+		Uninitialised = 1,
+		Unavailable   = 2,
+	};
+
 	static constexpr uint8_t kFullUpdateInterval = 200;
 
-	const struct device *mDev        = nullptr;
-	bool                 mInitialized = false;
+	const struct device *mDev   = nullptr;
+	State                mState = State::Uninitialised;
 	uint8_t              mPartialUpdateCount = 0;
 
 	std::optional<int16_t>  mCurrentTemperature;

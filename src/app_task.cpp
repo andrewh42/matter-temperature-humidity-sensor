@@ -113,7 +113,7 @@ CHIP_ERROR AppTask::Init()
 	ReturnErrorOnFailure(sIdentifyHumidityCluster.Init());
 
 #ifdef CONFIG_DISPLAY
-	ReturnErrorOnFailure(DisplayManager::Instance().Init());
+	DisplayManager::Instance().Init();
 #endif
 
 	ReturnErrorOnFailure(Nrf::Matter::StartServer());

@@ -6,7 +6,6 @@
 
 #include "display_manager.h"
 
-#include <system/SystemError.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/logging/log.h>
 
@@ -129,12 +128,13 @@ void DisplayManager::CreateIcon(lv_obj_t *screen, uint32_t codepoint, lv_obj_t *
 	lv_obj_set_pos(icon, 0, centreY - lv_font_get_line_height(&lv_font_phosphor_32) / 2);
 }
 
-CHIP_ERROR DisplayManager::Init()
+void DisplayManager::Init()
 {
 	mDev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	if (!device_is_ready(mDev)) {
-		LOG_ERR("Display device not ready");
-		return chip::System::MapErrorZephyr(-ENODEV);
+		LOG_ERR("Display device not ready; continuing without display");
+		mState = State::Unavailable;
+		return;
 	}
 	LOG_INF("Display device is ready");
 
@@ -201,8 +201,7 @@ CHIP_ERROR DisplayManager::Init()
 	CreateIcon(screen, kPhosphorThermometer, mValueTemperature);
 	CreateIcon(screen, kPhosphorDrop,        mValueHumidity);
 
-	mInitialized = true;
-	return CHIP_NO_ERROR;
+	mState = State::Ready;
 }
 
 void DisplayManager::UpdateMeasurements(std::optional<int16_t>  temperatureHundredths,
@@ -233,7 +232,7 @@ void DisplayManager::SetSensorInfo(const char *secondaryName,
 
 void DisplayManager::RefreshDisplay()
 {
-	if (!mInitialized) {
+	if (mState != State::Ready) {
 		return;
 	}
 	if (mCurrentTemperature                   == mLastTemperature                   &&
