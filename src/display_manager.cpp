@@ -13,20 +13,23 @@
 
 LOG_MODULE_REGISTER(display_manager, CONFIG_DISPLAY_MANAGER_LOG_LEVEL);
 
+LV_FONT_DECLARE(lv_font_splinesans_medium_18);
 LV_FONT_DECLARE(lv_font_splinesans_medium_20);
 LV_FONT_DECLARE(lv_font_splinesans_bold_72);
+LV_FONT_DECLARE(lv_font_phosphor_bold_18);
 LV_FONT_DECLARE(lv_font_phosphor_32);
 
 // Replace with codepoints from the Phosphor lookup script.
 static constexpr uint32_t kPhosphorThermometer = 0xE5C6;
 static constexpr uint32_t kPhosphorDrop        = 0xE210;
+static constexpr uint32_t kPhosphorArrowsUpDown = 0xEB04;
 
 static constexpr int32_t kScreenWidth            = 200;
 static constexpr int32_t kScreenHeight           = 200;
 static constexpr int32_t kHeaderHeight           = 24;
 static constexpr int32_t kHeaderInnerPadRight    = 2;
 static constexpr int32_t kHeaderInnerPadTop      = 2;
-static constexpr int32_t kHeaderTextLeftOffset   = 4;
+static constexpr int32_t kHeaderTextLeftOffset   = 0;
 static constexpr int32_t kSignalWidgetWidth      = 26;
 static constexpr int32_t kSignalWidgetHeight     = 14;
 static constexpr int32_t kStatusBarColumnGap     = 4;
@@ -211,7 +214,7 @@ void DisplayManager::BuildStatusBar(lv_obj_t *screen)
 	lv_obj_add_event_cb(mSignalWidget, SignalDrawCallback, LV_EVENT_DRAW_MAIN, this);
 
 	mDecontaminationLabel = lv_label_create(header);
-	lv_obj_set_style_text_font(mDecontaminationLabel, &lv_font_splinesans_medium_20, 0);
+	lv_obj_set_style_text_font(mDecontaminationLabel, &lv_font_splinesans_medium_18, 0);
 	lv_obj_align(mDecontaminationLabel, LV_ALIGN_TOP_LEFT, kHeaderTextLeftOffset, 0);
 	lv_label_set_text(mDecontaminationLabel, "");
 	lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
@@ -227,14 +230,40 @@ void DisplayManager::BuildStatusBar(lv_obj_t *screen)
 	lv_obj_set_style_pad_column(mStatusBarContainer, kStatusBarColumnGap, 0);
 
 	mPrimarySensorLabel = lv_label_create(mStatusBarContainer);
-	lv_obj_set_style_text_font(mPrimarySensorLabel, &lv_font_splinesans_medium_20, 0);
+	lv_obj_set_style_text_font(mPrimarySensorLabel, &lv_font_splinesans_medium_18, 0);
 	lv_label_set_text(mPrimarySensorLabel, "");
 	lv_obj_add_flag(mPrimarySensorLabel, LV_OBJ_FLAG_HIDDEN);
 
 	mOffsetFromSecondaryLabel = lv_label_create(mStatusBarContainer);
-	lv_obj_set_style_text_font(mOffsetFromSecondaryLabel, &lv_font_splinesans_medium_20, 0);
+	lv_obj_set_style_text_font(mOffsetFromSecondaryLabel, &lv_font_splinesans_medium_18, 0);
 	lv_label_set_text(mOffsetFromSecondaryLabel, "");
 	lv_obj_add_flag(mOffsetFromSecondaryLabel, LV_OBJ_FLAG_HIDDEN);
+
+	mCalibrationOffsetContainer = lv_obj_create(mStatusBarContainer);
+	lv_obj_remove_style_all(mCalibrationOffsetContainer);
+	lv_obj_set_size(mCalibrationOffsetContainer, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+	lv_obj_set_style_margin_left(mCalibrationOffsetContainer, -4, 0);
+	lv_obj_set_layout(mCalibrationOffsetContainer, LV_LAYOUT_FLEX);
+	lv_obj_set_flex_flow(mCalibrationOffsetContainer, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(mCalibrationOffsetContainer, LV_FLEX_ALIGN_START,
+	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_column(mCalibrationOffsetContainer, 0, 0);
+	lv_obj_add_flag(mCalibrationOffsetContainer, LV_OBJ_FLAG_HIDDEN);
+
+	mCalibrationOffsetGlyph = lv_label_create(mCalibrationOffsetContainer);
+	lv_obj_set_style_text_font(mCalibrationOffsetGlyph, &lv_font_phosphor_bold_18, 0);
+	char arrowsBuf[4] = {
+	    static_cast<char>(0xE0 | (kPhosphorArrowsUpDown >> 12)),
+	    static_cast<char>(0x80 | ((kPhosphorArrowsUpDown >> 6) & 0x3F)),
+	    static_cast<char>(0x80 | (kPhosphorArrowsUpDown & 0x3F)),
+	    '\0'
+	};
+	lv_label_set_text(mCalibrationOffsetGlyph, arrowsBuf);
+
+	mCalibrationOffsetValue = lv_label_create(mCalibrationOffsetContainer);
+	lv_obj_set_style_text_font(mCalibrationOffsetValue, &lv_font_splinesans_medium_18, 0);
+	lv_obj_set_style_margin_left(mCalibrationOffsetValue, -6, 0);
+	lv_label_set_text(mCalibrationOffsetValue, "");
 }
 
 void DisplayManager::BuildMeasurementsContainer(lv_obj_t *screen)
@@ -303,15 +332,23 @@ void DisplayManager::SetSecondaryHumidity(std::optional<uint16_t> humidityHundre
 	mCurrentSecondaryHumidity = humidityHundredths;
 }
 
+void DisplayManager::SetHumidityCalibrationOffset(std::optional<int16_t> offsetHundredths)
+{
+	mCurrentHumidityCalibrationOffset = offsetHundredths;
+}
+
 void DisplayManager::RefreshDisplay()
 {
 	if (mState != State::Ready) {
 		return;
 	}
 
+	const bool sensorInfoTemporarilyVisible =
+		mSecondarySensorPresent || mTemporarySensorInfoRefreshesRemaining > 0;
 	const bool primaryNameVisible =
-		(mCurrentPrimarySensorName != nullptr) &&
-		(mSecondarySensorPresent || mTemporarySensorInfoRefreshesRemaining > 0);
+		(mCurrentPrimarySensorName != nullptr) && sensorInfoTemporarilyVisible;
+	const bool calibrationOffsetVisible =
+		mCurrentHumidityCalibrationOffset.has_value() && sensorInfoTemporarilyVisible;
 
 	const bool noChange =
 		mCurrentTemperature                   == mLastTemperature                   &&
@@ -322,7 +359,9 @@ void DisplayManager::RefreshDisplay()
 		mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds &&
 		mCurrentPrimarySensorName             == mLastPrimarySensorName             &&
 		mCurrentSecondaryHumidity             == mLastSecondaryHumidity             &&
-		primaryNameVisible                    == mLastPrimaryNameVisible;
+		mCurrentHumidityCalibrationOffset     == mLastHumidityCalibrationOffset     &&
+		primaryNameVisible                    == mLastPrimaryNameVisible            &&
+		calibrationOffsetVisible              == mLastCalibrationOffsetVisible;
 
 	if (!noChange) {
 		mPartialUpdateCount++;
@@ -350,7 +389,9 @@ void DisplayManager::RefreshDisplay()
 		mLastDecontaminationElapsedSeconds = mCurrentDecontaminationElapsedSeconds;
 		mLastPrimarySensorName             = mCurrentPrimarySensorName;
 		mLastSecondaryHumidity             = mCurrentSecondaryHumidity;
+		mLastHumidityCalibrationOffset     = mCurrentHumidityCalibrationOffset;
 		mLastPrimaryNameVisible            = primaryNameVisible;
+		mLastCalibrationOffsetVisible      = calibrationOffsetVisible;
 	}
 
 	// Each refresh in single-sensor mode (decon inactive) consumes one of
@@ -393,9 +434,11 @@ void DisplayManager::DrawSignalBars()
 
 void DisplayManager::DrawSensorInfo()
 {
+	const bool sensorInfoTemporarilyVisible =
+		mSecondarySensorPresent || mTemporarySensorInfoRefreshesRemaining > 0;
+
 	const bool primaryNameVisible =
-		(mCurrentPrimarySensorName != nullptr) &&
-		(mSecondarySensorPresent || mTemporarySensorInfoRefreshesRemaining > 0);
+		(mCurrentPrimarySensorName != nullptr) && sensorInfoTemporarilyVisible;
 	if (primaryNameVisible) {
 		lv_label_set_text(mPrimarySensorLabel, mCurrentPrimarySensorName);
 		lv_obj_remove_flag(mPrimarySensorLabel, LV_OBJ_FLAG_HIDDEN);
@@ -415,6 +458,21 @@ void DisplayManager::DrawSensorInfo()
 		lv_obj_remove_flag(mOffsetFromSecondaryLabel, LV_OBJ_FLAG_HIDDEN);
 	} else {
 		lv_obj_add_flag(mOffsetFromSecondaryLabel, LV_OBJ_FLAG_HIDDEN);
+	}
+
+	const bool calibrationOffsetVisible =
+		mCurrentHumidityCalibrationOffset.has_value() && sensorInfoTemporarilyVisible;
+	if (calibrationOffsetVisible) {
+		int32_t value     = *mCurrentHumidityCalibrationOffset;
+		int32_t tenths    = (value >= 0) ? (value + 5) / 10 : (value - 5) / 10;
+		int32_t absTenths = (tenths < 0) ? -tenths : tenths;
+		lv_label_set_text_fmt(mCalibrationOffsetValue, "%s%d.%01d",
+		                      (tenths < 0) ? "-" : "+",
+		                      static_cast<int>(absTenths / 10),
+		                      static_cast<int>(absTenths % 10));
+		lv_obj_remove_flag(mCalibrationOffsetContainer, LV_OBJ_FLAG_HIDDEN);
+	} else {
+		lv_obj_add_flag(mCalibrationOffsetContainer, LV_OBJ_FLAG_HIDDEN);
 	}
 }
 

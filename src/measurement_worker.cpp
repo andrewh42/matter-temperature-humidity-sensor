@@ -8,6 +8,7 @@
 #include "io_worker.h"
 
 #include <zephyr/device.h>
+#include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 
 #include <errno.h>
@@ -73,6 +74,7 @@ int MeasurementWorker::Init(PublishFn publish)
 #ifdef CONFIG_DISPLAY
 	DisplayManager::Instance().SetPrimarySensorName(mPrimarySensor->name);
 	DisplayManager::Instance().SetSecondarySensorPresent(mSecondarySensor != nullptr);
+	UpdateDisplayedHumidityCalibrationOffset();
 #endif
 
 	return 0;
@@ -189,6 +191,9 @@ void MeasurementWorker::Tick()
 		} else {
 			if (mHumidityCalibrator.Apply(primaryHumidity, secondaryHumidity)) {
 				mHdc302xSensor.humidityAverage.reset();
+#ifdef CONFIG_DISPLAY
+				UpdateDisplayedHumidityCalibrationOffset();
+#endif
 			}
 		}
 	}
@@ -205,6 +210,7 @@ void MeasurementWorker::Tick()
 	if (mSecondarySensor != nullptr) {
 		DisplayManager::Instance().SetSecondaryHumidity(secondaryHumidity);
 	}
+
 	DisplayManager::Instance().RefreshDisplay();
 #else
 	clusterUpdateLED.Set(false);
@@ -230,7 +236,36 @@ void MeasurementWorker::TogglePrimary()
 
 #ifdef CONFIG_DISPLAY
 	DisplayManager::Instance().SetPrimarySensorName(mPrimarySensor->name);
+	PushHumidityCalibrationOffsetToDisplay();
 #endif
 
 	Tick();
 }
+
+#ifdef CONFIG_DISPLAY
+void MeasurementWorker::UpdateDisplayedHumidityCalibrationOffset()
+{
+	mHdc302xHumidityOffsetHundredths.reset();
+	if (mHdc302xSensor.IsAvailable()) {
+		struct sensor_value offset = {};
+		int rc = sensor_attr_get(mHdc302xSensor.dev, SENSOR_CHAN_HUMIDITY,
+		                         SENSOR_ATTR_OFFSET, &offset);
+		if (rc == 0) {
+			mHdc302xHumidityOffsetHundredths =
+				static_cast<int16_t>(offset.val1 * 100 + offset.val2 / 10000);
+		} else {
+			LOG_WRN("Failed to read HDC302x humidity offset attr: %d", rc);
+		}
+	}
+	PushHumidityCalibrationOffsetToDisplay();
+}
+
+void MeasurementWorker::PushHumidityCalibrationOffsetToDisplay()
+{
+	std::optional<int16_t> displayValue;
+	if (mPrimarySensor == &mHdc302xSensor) {
+		displayValue = mHdc302xHumidityOffsetHundredths;
+	}
+	DisplayManager::Instance().SetHumidityCalibrationOffset(displayValue);
+}
+#endif

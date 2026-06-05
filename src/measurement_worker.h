@@ -86,12 +86,32 @@ private:
 	void ToggleDecontamination();
 #endif
 
+#ifdef CONFIG_DISPLAY
+	/// Re-read the HDC302x's persisted humidity offset into the cache and
+	/// refresh the displayed value. The offset only changes after a
+	/// successful HDC302xHumidityCalibrator::Apply(), so this is called
+	/// from Init() and post-Apply rather than on every measurement tick.
+	void UpdateDisplayedHumidityCalibrationOffset();
+
+	/// Push the cached HDC302x humidity offset to the display, choosing
+	/// visibility based on which sensor is currently primary. Used on
+	/// sensor toggle so the indicator follows the active sensor without
+	/// re-reading the I2C attribute.
+	void PushHumidityCalibrationOffsetToDisplay();
+#endif
+
 	PublishFn mPublish;
 
 	Sensor    mHdc302xSensor;
 	Sensor    mSht4xSensor;
 	Sensor   *mPrimarySensor   = nullptr;
 	Sensor   *mSecondarySensor = nullptr;
+
+#ifdef CONFIG_DISPLAY
+	/// Cached HDC302x persisted humidity offset, in hundredths of a
+	/// percent. Populated by UpdateDisplayedHumidityCalibrationOffset().
+	std::optional<int16_t> mHdc302xHumidityOffsetHundredths;
+#endif
 
 #ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
 	HDC302xDecontaminationController mDecontaminationController;

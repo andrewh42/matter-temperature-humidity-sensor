@@ -48,8 +48,10 @@ target_sources_ifdef(CONFIG_APP_HDC302X_MAINTENANCE_FEATURES app PRIVATE
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/display_manager.cpp
   src/thread_status.cpp
+  src/fonts/lv_font_splinesans_medium_18.c
   src/fonts/lv_font_splinesans_medium_20.c
   src/fonts/lv_font_splinesans_bold_72.c
+  src/fonts/lv_font_phosphor_bold_18.c
   src/fonts/lv_font_phosphor_32.c
 )
 

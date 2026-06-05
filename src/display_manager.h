@@ -42,6 +42,11 @@ public:
 	/// std::nullopt when no fresh reading is available.
 	void SetSecondaryHumidity(std::optional<uint16_t> humidityHundredths);
 
+	/// Updates the displayed HDC302x humidity calibration offset
+	/// (hundredths of %RH, signed). Pass std::nullopt to hide -- e.g.
+	/// when the primary sensor is not an HDC302x.
+	void SetHumidityCalibrationOffset(std::optional<int16_t> offsetHundredths);
+
 	void RefreshDisplay();
 
 private:
@@ -96,9 +101,9 @@ private:
 
 	static constexpr uint8_t kFullUpdateInterval = 200;
 
-	/// In single-sensor mode, the primary name label (and the Part-2
-	/// calibration offset, once added) display for this many refreshes
-	/// after boot, then hide. Tunable here without a pristine rebuild.
+	/// In single-sensor mode, the primary name and HDC302x humidity
+	/// calibration offset display for this many refreshes after boot,
+	/// then hide. Tunable here without a pristine rebuild.
 	static constexpr uint8_t kSingleSensorInformationDisplayCount = 10;
 
 	const struct device *mDev   = nullptr;
@@ -115,6 +120,7 @@ private:
 	const char *mCurrentPrimarySensorName             = nullptr;
 	bool        mSecondarySensorPresent               = false;
 	std::optional<uint16_t> mCurrentSecondaryHumidity;
+	std::optional<int16_t>  mCurrentHumidityCalibrationOffset;
 	uint8_t     mTemporarySensorInfoRefreshesRemaining       = kSingleSensorInformationDisplayCount;
 
 	std::optional<int16_t>  mLastTemperature;
@@ -125,15 +131,20 @@ private:
 	uint32_t    mLastDecontaminationElapsedSeconds = UINT32_MAX;
 	const char *mLastPrimarySensorName             = nullptr;
 	std::optional<uint16_t> mLastSecondaryHumidity;
+	std::optional<int16_t>  mLastHumidityCalibrationOffset;
 	bool        mLastPrimaryNameVisible            = false;
+	bool        mLastCalibrationOffsetVisible      = false;
 
-	lv_obj_t *mValueTemperature         = nullptr;
-	lv_obj_t *mValueHumidity            = nullptr;
-	lv_obj_t *mSignalWidget             = nullptr;
-	lv_obj_t *mDecontaminationLabel     = nullptr;
-	lv_obj_t *mStatusBarContainer       = nullptr;
-	lv_obj_t *mPrimarySensorLabel       = nullptr;
-	lv_obj_t *mOffsetFromSecondaryLabel = nullptr;
+	lv_obj_t *mValueTemperature            = nullptr;
+	lv_obj_t *mValueHumidity               = nullptr;
+	lv_obj_t *mSignalWidget                = nullptr;
+	lv_obj_t *mDecontaminationLabel        = nullptr;
+	lv_obj_t *mStatusBarContainer          = nullptr;
+	lv_obj_t *mPrimarySensorLabel          = nullptr;
+	lv_obj_t *mOffsetFromSecondaryLabel    = nullptr;
+	lv_obj_t *mCalibrationOffsetContainer  = nullptr;
+	lv_obj_t *mCalibrationOffsetGlyph      = nullptr;
+	lv_obj_t *mCalibrationOffsetValue      = nullptr;
 };
 
 #endif /* CONFIG_DISPLAY */
