@@ -21,6 +21,20 @@ LV_FONT_DECLARE(lv_font_phosphor_32);
 static constexpr uint32_t kPhosphorThermometer = 0xE5C6;
 static constexpr uint32_t kPhosphorDrop        = 0xE210;
 
+static constexpr int32_t kScreenWidth            = 200;
+static constexpr int32_t kScreenHeight           = 200;
+static constexpr int32_t kHeaderHeight           = 24;
+static constexpr int32_t kHeaderInnerPadRight    = 2;
+static constexpr int32_t kHeaderInnerPadTop      = 2;
+static constexpr int32_t kHeaderTextLeftOffset   = 4;
+static constexpr int32_t kSignalWidgetWidth      = 26;
+static constexpr int32_t kSignalWidgetHeight     = 14;
+static constexpr int32_t kStatusBarColumnGap     = 4;
+static constexpr int32_t kSensorContainerHeight  = kScreenHeight - kHeaderHeight;
+static constexpr int32_t kSensorContainerLeftPad = 32;
+static constexpr int32_t kDividerWidth           = 160;
+static constexpr int32_t kDividerHeight          = 1;
+
 void DisplayManager::SignalDrawCallback(lv_event_t *event)
 {
 	auto      *self  = static_cast<DisplayManager *>(lv_event_get_user_data(event));
@@ -143,14 +157,27 @@ void DisplayManager::InitHandler(k_work *)
 
 void DisplayManager::InitOnWorker()
 {
-	mDev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
-	if (!device_is_ready(mDev)) {
-		LOG_ERR("Display device not ready; continuing without display");
+	if (!InitDisplayDevice()) {
 		mState = State::Unavailable;
 		return;
 	}
-	LOG_INF("Display device is ready");
+	BuildUserInterface();
+	mState = State::Ready;
+}
 
+bool DisplayManager::InitDisplayDevice()
+{
+	mDev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+	if (!device_is_ready(mDev)) {
+		LOG_ERR("Display device not ready; continuing without display");
+		return false;
+	}
+	LOG_INF("Display device is ready");
+	return true;
+}
+
+void DisplayManager::BuildUserInterface()
+{
 	lv_display_t *disp = lv_display_get_default();
 #if CONFIG_DISPLAY_MANAGER_LOG_LEVEL >= LOG_LEVEL_DBG
 	lv_draw_buf_t *drawBuf = lv_display_get_buf_active(disp);
@@ -159,62 +186,87 @@ void DisplayManager::InitOnWorker()
 	lv_display_set_theme(disp, lv_theme_mono_init(disp, true, &lv_font_splinesans_medium_20));
 
 	lv_obj_t *screen = lv_screen_active();
+	BuildStatusBar(screen);
+	BuildMeasurementsContainer(screen);
 
-	// Header bar
+	// Layout pass: computes card positions and value label coordinates
+	// so the floating icons can be placed relative to them.
+	lv_obj_update_layout(screen);
+	PlaceFloatingIcons(screen);
+}
+
+void DisplayManager::BuildStatusBar(lv_obj_t *screen)
+{
 	lv_obj_t *header = lv_obj_create(screen);
 	lv_obj_remove_style_all(header);
-	lv_obj_set_size(header, 200, 24);
+	lv_obj_set_size(header, kScreenWidth, kHeaderHeight);
 	lv_obj_set_pos(header, 0, 0);
-	lv_obj_set_style_pad_right(header, 2, 0);
-	lv_obj_set_style_pad_top(header, 2, 0);
+	lv_obj_set_style_pad_right(header, kHeaderInnerPadRight, 0);
+	lv_obj_set_style_pad_top(header, kHeaderInnerPadTop, 0);
 
 	mSignalWidget = lv_obj_create(header);
 	lv_obj_remove_style_all(mSignalWidget);
-	lv_obj_set_size(mSignalWidget, 26, 14);
+	lv_obj_set_size(mSignalWidget, kSignalWidgetWidth, kSignalWidgetHeight);
 	lv_obj_align(mSignalWidget, LV_ALIGN_TOP_RIGHT, 0, 0);
 	lv_obj_add_event_cb(mSignalWidget, SignalDrawCallback, LV_EVENT_DRAW_MAIN, this);
 
 	mDecontaminationLabel = lv_label_create(header);
 	lv_obj_set_style_text_font(mDecontaminationLabel, &lv_font_splinesans_medium_20, 0);
-	lv_obj_align(mDecontaminationLabel, LV_ALIGN_TOP_LEFT, 4, 0);
+	lv_obj_align(mDecontaminationLabel, LV_ALIGN_TOP_LEFT, kHeaderTextLeftOffset, 0);
 	lv_label_set_text(mDecontaminationLabel, "");
 	lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
 
-	mSecondaryDeltaLabel = lv_label_create(header);
-	lv_obj_set_style_text_font(mSecondaryDeltaLabel, &lv_font_splinesans_medium_20, 0);
-	lv_obj_align(mSecondaryDeltaLabel, LV_ALIGN_TOP_LEFT, 4, 0);
-	lv_label_set_text(mSecondaryDeltaLabel, "");
+	mStatusBarContainer = lv_obj_create(header);
+	lv_obj_remove_style_all(mStatusBarContainer);
+	lv_obj_set_size(mStatusBarContainer, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+	lv_obj_align(mStatusBarContainer, LV_ALIGN_TOP_LEFT, kHeaderTextLeftOffset, 0);
+	lv_obj_set_layout(mStatusBarContainer, LV_LAYOUT_FLEX);
+	lv_obj_set_flex_flow(mStatusBarContainer, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(mStatusBarContainer, LV_FLEX_ALIGN_START,
+	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_column(mStatusBarContainer, kStatusBarColumnGap, 0);
 
-	// Sensor container (flex column, space-evenly)
+	mPrimarySensorLabel = lv_label_create(mStatusBarContainer);
+	lv_obj_set_style_text_font(mPrimarySensorLabel, &lv_font_splinesans_medium_20, 0);
+	lv_label_set_text(mPrimarySensorLabel, "");
+	lv_obj_add_flag(mPrimarySensorLabel, LV_OBJ_FLAG_HIDDEN);
+
+	mOffsetFromSecondaryLabel = lv_label_create(mStatusBarContainer);
+	lv_obj_set_style_text_font(mOffsetFromSecondaryLabel, &lv_font_splinesans_medium_20, 0);
+	lv_label_set_text(mOffsetFromSecondaryLabel, "");
+	lv_obj_add_flag(mOffsetFromSecondaryLabel, LV_OBJ_FLAG_HIDDEN);
+}
+
+void DisplayManager::BuildMeasurementsContainer(lv_obj_t *screen)
+{
 	lv_obj_t *container = lv_obj_create(screen);
 	lv_obj_remove_style_all(container);
-	lv_obj_set_size(container, 200, 176);
-	lv_obj_set_pos(container, 0, 24);
+	lv_obj_set_size(container, kScreenWidth, kSensorContainerHeight);
+	lv_obj_set_pos(container, 0, kHeaderHeight);
 	lv_obj_set_layout(container, LV_LAYOUT_FLEX);
 	lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(container, LV_FLEX_ALIGN_SPACE_EVENLY,
 	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-	lv_obj_set_style_pad_left(container, 32, 0);
+	lv_obj_set_style_pad_left(container, kSensorContainerLeftPad, 0);
 
 	mValueTemperature = CreateSensorCard(container, "TEMPERATURE",
 	                                     "\xC2\xB0" "C");
 
 	lv_obj_t *divider = lv_obj_create(container);
 	lv_obj_remove_style_all(divider);
-	lv_obj_set_size(divider, 160, 1);
+	lv_obj_set_size(divider, kDividerWidth, kDividerHeight);
 	lv_obj_set_style_bg_color(divider, lv_color_white(), 0);
 	lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
 
 	mValueHumidity = CreateSensorCard(container, "HUMIDITY", "%");
+}
 
-	// Layout pass: computes card positions and value label coordinates.
-	lv_obj_update_layout(screen);
-
-	// Icons float on screen (outside the container) so they're unaffected by pad_left.
+void DisplayManager::PlaceFloatingIcons(lv_obj_t *screen)
+{
+	// Icons float on screen (outside the sensor container) so they're
+	// unaffected by its pad_left.
 	CreateIcon(screen, kPhosphorThermometer, mValueTemperature);
 	CreateIcon(screen, kPhosphorDrop,        mValueHumidity);
-
-	mState = State::Ready;
 }
 
 void DisplayManager::UpdateMeasurements(std::optional<int16_t>  temperatureHundredths,
@@ -236,11 +288,19 @@ void DisplayManager::SetDecontaminationStatus(bool active, uint32_t elapsedSecon
 	mCurrentDecontaminationElapsedSeconds = elapsedSeconds;
 }
 
-void DisplayManager::SetSensorInfo(const char *secondaryName,
-                                    std::optional<uint16_t> secondaryHumidityHundredths)
+void DisplayManager::SetPrimarySensorName(const char *name)
 {
-	mCurrentSecondarySensorName = secondaryName;
-	mCurrentSecondaryHumidity   = secondaryHumidityHundredths;
+	mCurrentPrimarySensorName = name;
+}
+
+void DisplayManager::SetSecondarySensorPresent(bool present)
+{
+	mSecondarySensorPresent = present;
+}
+
+void DisplayManager::SetSecondaryHumidity(std::optional<uint16_t> humidityHundredths)
+{
+	mCurrentSecondaryHumidity = humidityHundredths;
 }
 
 void DisplayManager::RefreshDisplay()
@@ -248,42 +308,58 @@ void DisplayManager::RefreshDisplay()
 	if (mState != State::Ready) {
 		return;
 	}
-	if (mCurrentTemperature                   == mLastTemperature                   &&
-	    mCurrentHumidity                      == mLastHumidity                      &&
-	    mCurrentConnected                     == mLastConnected                     &&
-	    mCurrentLqi                           == mLastLqi                           &&
-	    mCurrentDecontaminationActive         == mLastDecontaminationActive         &&
-	    mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds &&
-	    mCurrentSecondarySensorName            == mLastSecondarySensorName            &&
-	    mCurrentSecondaryHumidity              == mLastSecondaryHumidity) {
-		return;
+
+	const bool primaryNameVisible =
+		(mCurrentPrimarySensorName != nullptr) &&
+		(mSecondarySensorPresent || mTemporarySensorInfoRefreshesRemaining > 0);
+
+	const bool noChange =
+		mCurrentTemperature                   == mLastTemperature                   &&
+		mCurrentHumidity                      == mLastHumidity                      &&
+		mCurrentConnected                     == mLastConnected                     &&
+		mCurrentLqi                           == mLastLqi                           &&
+		mCurrentDecontaminationActive         == mLastDecontaminationActive         &&
+		mCurrentDecontaminationElapsedSeconds == mLastDecontaminationElapsedSeconds &&
+		mCurrentPrimarySensorName             == mLastPrimarySensorName             &&
+		mCurrentSecondaryHumidity             == mLastSecondaryHumidity             &&
+		primaryNameVisible                    == mLastPrimaryNameVisible;
+
+	if (!noChange) {
+		mPartialUpdateCount++;
+		bool fullUpdate = (mPartialUpdateCount >= kFullUpdateInterval);
+		if (fullUpdate) {
+			mPartialUpdateCount = 0;
+			display_blanking_on(mDev);
+		}
+
+		DrawMeasurements();
+		DrawSignalBars();
+		DrawSensorInfo();
+		DrawDecontamination();
+		lv_timer_handler();
+
+		if (fullUpdate) {
+			display_blanking_off(mDev);
+		}
+
+		mLastTemperature                   = mCurrentTemperature;
+		mLastHumidity                      = mCurrentHumidity;
+		mLastConnected                     = mCurrentConnected;
+		mLastLqi                           = mCurrentLqi;
+		mLastDecontaminationActive         = mCurrentDecontaminationActive;
+		mLastDecontaminationElapsedSeconds = mCurrentDecontaminationElapsedSeconds;
+		mLastPrimarySensorName             = mCurrentPrimarySensorName;
+		mLastSecondaryHumidity             = mCurrentSecondaryHumidity;
+		mLastPrimaryNameVisible            = primaryNameVisible;
 	}
 
-	mPartialUpdateCount++;
-	bool fullUpdate = (mPartialUpdateCount >= kFullUpdateInterval);
-	if (fullUpdate) {
-		mPartialUpdateCount = 0;
-		display_blanking_on(mDev);
+	// Each refresh in single-sensor mode (decon inactive) consumes one of
+	// the budgeted display updates; pausing during decon prevents the
+	// overlay from silently eating the visibility window.
+	if (!mSecondarySensorPresent && !mCurrentDecontaminationActive &&
+	    mTemporarySensorInfoRefreshesRemaining > 0) {
+		mTemporarySensorInfoRefreshesRemaining--;
 	}
-
-	DrawMeasurements();
-	DrawSignalBars();
-	DrawSensorInfo();
-	DrawDecontamination();
-	lv_timer_handler();
-
-	if (fullUpdate) {
-		display_blanking_off(mDev);
-	}
-
-	mLastTemperature                   = mCurrentTemperature;
-	mLastHumidity                      = mCurrentHumidity;
-	mLastConnected                     = mCurrentConnected;
-	mLastLqi                           = mCurrentLqi;
-	mLastDecontaminationActive         = mCurrentDecontaminationActive;
-	mLastDecontaminationElapsedSeconds = mCurrentDecontaminationElapsedSeconds;
-	mLastSecondarySensorName            = mCurrentSecondarySensorName;
-	mLastSecondaryHumidity              = mCurrentSecondaryHumidity;
 }
 
 void DisplayManager::DrawMeasurements()
@@ -317,41 +393,43 @@ void DisplayManager::DrawSignalBars()
 
 void DisplayManager::DrawSensorInfo()
 {
-	if (mCurrentDecontaminationActive) {
-		lv_obj_add_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);
-		return;
+	const bool primaryNameVisible =
+		(mCurrentPrimarySensorName != nullptr) &&
+		(mSecondarySensorPresent || mTemporarySensorInfoRefreshesRemaining > 0);
+	if (primaryNameVisible) {
+		lv_label_set_text(mPrimarySensorLabel, mCurrentPrimarySensorName);
+		lv_obj_remove_flag(mPrimarySensorLabel, LV_OBJ_FLAG_HIDDEN);
+	} else {
+		lv_obj_add_flag(mPrimarySensorLabel, LV_OBJ_FLAG_HIDDEN);
 	}
 
-	const bool secondaryValid =
-		mCurrentSecondarySensorName != nullptr &&
-		mCurrentSecondaryHumidity.has_value() &&
-		mCurrentHumidity.has_value();
-	if (secondaryValid) {
-		int32_t diff = static_cast<int32_t>(*mCurrentSecondaryHumidity) -
-		               static_cast<int32_t>(*mCurrentHumidity);
+	if (mCurrentHumidity.has_value() && mCurrentSecondaryHumidity.has_value()) {
+		int32_t diff = static_cast<int32_t>(*mCurrentHumidity) -
+		               static_cast<int32_t>(*mCurrentSecondaryHumidity);
 		int32_t deltaTenths = (diff >= 0) ? (diff + 5) / 10 : (diff - 5) / 10;
 		int32_t absTenths = (deltaTenths < 0) ? -deltaTenths : deltaTenths;
-		lv_obj_remove_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);
-		lv_label_set_text_fmt(mSecondaryDeltaLabel, "%s %s%d.%01d",
-		                      mCurrentSecondarySensorName,
+		lv_label_set_text_fmt(mOffsetFromSecondaryLabel, "%s%d.%01d",
 		                      (deltaTenths < 0) ? "-" : "+",
 		                      static_cast<int>(absTenths / 10),
 		                      static_cast<int>(absTenths % 10));
+		lv_obj_remove_flag(mOffsetFromSecondaryLabel, LV_OBJ_FLAG_HIDDEN);
 	} else {
-		lv_obj_add_flag(mSecondaryDeltaLabel, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_add_flag(mOffsetFromSecondaryLabel, LV_OBJ_FLAG_HIDDEN);
 	}
 }
 
 void DisplayManager::DrawDecontamination()
 {
-	if (!mCurrentDecontaminationActive) {
+	if (mCurrentDecontaminationActive) {
+		lv_obj_add_flag(mStatusBarContainer, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_remove_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
+		uint32_t mins = mCurrentDecontaminationElapsedSeconds / 60;
+		uint32_t secs = mCurrentDecontaminationElapsedSeconds % 60;
+		lv_label_set_text_fmt(mDecontaminationLabel, "DECON %u:%02u", mins, secs);
+	} else {
 		lv_obj_add_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
-		return;
+		lv_obj_remove_flag(mStatusBarContainer, LV_OBJ_FLAG_HIDDEN);
 	}
-	lv_obj_remove_flag(mDecontaminationLabel, LV_OBJ_FLAG_HIDDEN);
-	uint32_t mins = mCurrentDecontaminationElapsedSeconds / 60;
-	uint32_t secs = mCurrentDecontaminationElapsedSeconds % 60;
-	lv_label_set_text_fmt(mDecontaminationLabel, "DECON %u:%02u", mins, secs);
 }
 
 #endif /* CONFIG_DISPLAY */

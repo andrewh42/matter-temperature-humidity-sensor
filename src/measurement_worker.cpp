@@ -70,6 +70,11 @@ int MeasurementWorker::Init(PublishFn publish)
 	k_work_init(&mToggleDecontaminationWork, ToggleDecontaminationHandler);
 #endif
 
+#ifdef CONFIG_DISPLAY
+	DisplayManager::Instance().SetPrimarySensorName(mPrimarySensor->name);
+	DisplayManager::Instance().SetSecondarySensorPresent(mSecondarySensor != nullptr);
+#endif
+
 	return 0;
 }
 
@@ -198,7 +203,7 @@ void MeasurementWorker::Tick()
 
 	DisplayManager::Instance().UpdateMeasurements(primaryTemperature, primaryHumidity);
 	if (mSecondarySensor != nullptr) {
-		DisplayManager::Instance().SetSensorInfo(mSecondarySensor->name, secondaryHumidity);
+		DisplayManager::Instance().SetSecondaryHumidity(secondaryHumidity);
 	}
 	DisplayManager::Instance().RefreshDisplay();
 #else
@@ -222,6 +227,10 @@ void MeasurementWorker::TogglePrimary()
 	std::swap(mPrimarySensor, mSecondarySensor);
 
 	LOG_INF("Primary sensor: %s -> %s", mSecondarySensor->name, mPrimarySensor->name);
+
+#ifdef CONFIG_DISPLAY
+	DisplayManager::Instance().SetPrimarySensorName(mPrimarySensor->name);
+#endif
 
 	Tick();
 }

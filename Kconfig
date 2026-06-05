@@ -21,6 +21,7 @@ config CHIP_ICD_LIT_SUPPORT
 
 config APP_HDC302X_MAINTENANCE_FEATURES
 	bool "Enable HDC302x maintenance features (humidity calibration and decontamination)"
+	depends on TI_HDC302X
 	default n
 	help
 	  When enabled, Button 1 requests a humidity calibration of the HDC302x

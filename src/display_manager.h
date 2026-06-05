@@ -25,16 +25,52 @@ public:
 	                        std::optional<uint16_t> humidityHundredths);
 	void UpdateSignalStrength(bool connected, uint8_t lqi);
 	void SetDecontaminationStatus(bool active, uint32_t elapsedSeconds);
-	void SetSensorInfo(const char *secondaryName,
-	                   std::optional<uint16_t> secondaryHumidityHundredths);
+
+	/// Identifier shown for this device's primary sensor on the status bar.
+	/// Stored by pointer; @p name must remain valid for the lifetime of
+	/// the call. Pass nullptr to hide the primary-name label.
+	void SetPrimarySensorName(const char *name);
+
+	/// Records whether a paired secondary sensor is configured. Intended
+	/// to be called once during startup. Determines whether the primary
+	/// name label uses the single-sensor display countdown or remains
+	/// visible indefinitely.
+	void SetSecondarySensorPresent(bool present);
+
+	/// Latest reading from the paired secondary sensor, in hundredths of
+	/// %RH. Drives the offset-from-secondary status item. Pass
+	/// std::nullopt when no fresh reading is available.
+	void SetSecondaryHumidity(std::optional<uint16_t> humidityHundredths);
+
 	void RefreshDisplay();
 
 private:
 	/// Submitted to the IoWorker queue by Init(); thunks to InitOnWorker().
 	static void InitHandler(k_work *);
 
-	/// Runs the LVGL/SSD16XX bring-up on the IoWorker thread.
+	/// Orchestrates display bring-up on the IoWorker thread: device init
+	/// followed by UI construction, transitioning mState accordingly.
 	void InitOnWorker();
+
+	/// Acquires the display device and confirms it is ready. Returns true
+	/// on success; the caller transitions mState.
+	bool InitDisplayDevice();
+
+	/// Builds the LVGL widget tree on the active screen. Precondition:
+	/// the display device is ready.
+	void BuildUserInterface();
+
+	/// Builds the top header bar and its children (signal widget,
+	/// decontamination label, status-bar container with sensor labels).
+	void BuildStatusBar(lv_obj_t *screen);
+
+	/// Builds the main sensor container (temperature card, divider,
+	/// humidity card).
+	void BuildMeasurementsContainer(lv_obj_t *screen);
+
+	/// Places the Phosphor icons next to the sensor value labels. Must be
+	/// called after a layout pass so the value label coordinates are valid.
+	void PlaceFloatingIcons(lv_obj_t *screen);
 
 	/// Custom LVGL draw callback for the signal-strength widget.
 	static void SignalDrawCallback(lv_event_t *event);
@@ -60,6 +96,11 @@ private:
 
 	static constexpr uint8_t kFullUpdateInterval = 200;
 
+	/// In single-sensor mode, the primary name label (and the Part-2
+	/// calibration offset, once added) display for this many refreshes
+	/// after boot, then hide. Tunable here without a pristine rebuild.
+	static constexpr uint8_t kSingleSensorInformationDisplayCount = 10;
+
 	const struct device *mDev   = nullptr;
 	State                mState = State::Uninitialised;
 	k_work               mInitWork{};
@@ -71,8 +112,10 @@ private:
 	uint8_t     mCurrentLqi                           = 0;
 	bool        mCurrentDecontaminationActive         = false;
 	uint32_t    mCurrentDecontaminationElapsedSeconds = 0;
-	const char *mCurrentSecondarySensorName           = nullptr;
+	const char *mCurrentPrimarySensorName             = nullptr;
+	bool        mSecondarySensorPresent               = false;
 	std::optional<uint16_t> mCurrentSecondaryHumidity;
+	uint8_t     mTemporarySensorInfoRefreshesRemaining       = kSingleSensorInformationDisplayCount;
 
 	std::optional<int16_t>  mLastTemperature;
 	std::optional<uint16_t> mLastHumidity;
@@ -80,14 +123,17 @@ private:
 	uint8_t     mLastLqi                           = UINT8_MAX;
 	bool        mLastDecontaminationActive         = false;
 	uint32_t    mLastDecontaminationElapsedSeconds = UINT32_MAX;
-	const char *mLastSecondarySensorName           = nullptr;
+	const char *mLastPrimarySensorName             = nullptr;
 	std::optional<uint16_t> mLastSecondaryHumidity;
+	bool        mLastPrimaryNameVisible            = false;
 
-	lv_obj_t *mValueTemperature      = nullptr;
-	lv_obj_t *mValueHumidity         = nullptr;
-	lv_obj_t *mSignalWidget          = nullptr;
-	lv_obj_t *mDecontaminationLabel  = nullptr;
-	lv_obj_t *mSecondaryDeltaLabel   = nullptr;
+	lv_obj_t *mValueTemperature         = nullptr;
+	lv_obj_t *mValueHumidity            = nullptr;
+	lv_obj_t *mSignalWidget             = nullptr;
+	lv_obj_t *mDecontaminationLabel     = nullptr;
+	lv_obj_t *mStatusBarContainer       = nullptr;
+	lv_obj_t *mPrimarySensorLabel       = nullptr;
+	lv_obj_t *mOffsetFromSecondaryLabel = nullptr;
 };
 
 #endif /* CONFIG_DISPLAY */
