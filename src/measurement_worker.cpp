@@ -5,6 +5,7 @@
 #include "measurement_worker.h"
 
 #include "hdc302x_configuration.h"
+#include "sht4x_configuration.h"
 #include "io_worker.h"
 
 #include <zephyr/device.h>
@@ -44,6 +45,17 @@ int MeasurementWorker::Init(PublishFn publish)
 
 	mHdc302xSensor = Sensor(sHdc302xSensorDev, "HDC302x");
 	mSht4xSensor   = Sensor(sSht4xSensorDev,   "SHT4x");
+
+	if (mHdc302xSensor.IsAvailable()) {
+		if (auto nistId = ReadHdc302xNistId()) {
+			LOG_INF("HDC302x NIST ID: %s", nistId->c_str());
+		}
+	}
+	if (mSht4xSensor.IsAvailable()) {
+		if (auto serial = ReadSht4xSerialNumber()) {
+			LOG_INF("SHT4x serial number: %s", serial->c_str());
+		}
+	}
 
 	if (mHdc302xSensor.IsAvailable()) {
 		mPrimarySensor   = &mHdc302xSensor;

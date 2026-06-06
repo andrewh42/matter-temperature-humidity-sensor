@@ -38,6 +38,7 @@ target_sources(app PRIVATE
   src/matter_reporter.cpp
   src/measurement_worker.cpp
   src/sensor.cpp
+  src/sht4x_configuration.cpp
 )
 
 target_sources_ifdef(CONFIG_APP_HDC302X_MAINTENANCE_FEATURES app PRIVATE
