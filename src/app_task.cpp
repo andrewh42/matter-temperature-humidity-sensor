@@ -53,12 +53,12 @@ void AppTask::ButtonEventHandler(Nrf::ButtonState state, Nrf::ButtonMask hasChan
 	}
 
 #ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
-	if ((DK_BTN1_MSK & state & hasChanged)) {
-		MeasurementWorker::Instance().RequestHumidityCalibration();
+	if ((DK_BTN3_MSK & state & hasChanged)) {
+		MeasurementWorker::Instance().RequestToggleDecontamination();
 	}
 
 	if ((DK_BTN4_MSK & state & hasChanged)) {
-		MeasurementWorker::Instance().RequestToggleDecontamination();
+		MeasurementWorker::Instance().RequestHumidityCalibration();
 	}
 #endif
 }

@@ -133,7 +133,9 @@ Open this repo in Visual Studio Code and follow these steps:
 
     For the Nordic nRF5340 DK (with HDC302x and SHT4x and e-paper display enabled PLUS humidity calibration and decontamination features):
     ```sh
-    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;app-sht4x.overlay;epaper.overlay"
+    west build -p -d build-nrf5340dk -b nrf5340dk/nrf5340/cpuapp -- \
+      -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x.overlay;app-sht4x.overlay;epaper.overlay" \
+      -DCONFIG_APP_HDC302X_MAINTENANCE_FEATURES=y
     ```
 
     For the Seeed XIAO nRF54L15 (with HDC302x and e-paper display enabled):

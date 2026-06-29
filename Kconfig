@@ -24,8 +24,8 @@ config APP_HDC302X_MAINTENANCE_FEATURES
 	depends on TI_HDC302X
 	default n
 	help
-	  When enabled, Button 1 requests a humidity calibration of the HDC302x
-	  against an SHT4x reference, and Button 4 starts/stops a heater-driven
+	  When enabled, Button 4 requests a humidity calibration of the HDC302x
+	  against an SHT4x reference, and Button 3 starts/stops a heater-driven
 	  decontamination cycle on the HDC302x. Disabling drops the calibrator
 	  and decontamination controller from the build entirely.
 
