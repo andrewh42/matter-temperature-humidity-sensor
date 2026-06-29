@@ -9,7 +9,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
+LOG_MODULE_DECLARE(sensor, CONFIG_SENSOR_LOG_LEVEL);
 
 namespace
 {

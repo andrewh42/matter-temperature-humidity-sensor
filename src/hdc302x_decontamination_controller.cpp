@@ -11,13 +11,14 @@
 #include <zephyr/drivers/sensor/ti_hdc302x.h>
 #include <zephyr/logging/log.h>
 
+#include <cstdio>
 #include <optional>
 
 #ifdef CONFIG_DISPLAY
 #include "display_manager.h"
 #endif
 
-LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
+LOG_MODULE_DECLARE(sensor, CONFIG_SENSOR_LOG_LEVEL);
 
 void HDC302xDecontaminationController::Init(const device *hdc302xDevice)
 {
@@ -58,6 +59,16 @@ void HDC302xDecontaminationController::SetHeater(int32_t level)
 	}
 }
 
+const char *HDC302xDecontaminationController::ToString(StopReason reason)
+{
+	switch (reason) {
+	case StopReason::Toggle:                   return "toggle";
+	case StopReason::TimerExpired:             return "timer expired";
+	case StopReason::HumidityThresholdReached: return "humidity below threshold";
+	}
+	return "unknown";
+}
+
 void HDC302xDecontaminationController::Start()
 {
 	if (mActive) {
@@ -70,8 +81,10 @@ void HDC302xDecontaminationController::Start()
 
 	SetHeater(kHeaterLevel);
 
-	mStartUptimeMs = k_uptime_get();
-	mActive        = true;
+	mStartUptimeMs          = k_uptime_get();
+	mCycleCount             = 0;
+	mLastHumidityHundredths = std::nullopt;
+	mActive                 = true;
 
 	k_timer_start(&mTimer, K_MSEC(kIntervalMs), K_MSEC(kIntervalMs));
 
@@ -86,6 +99,11 @@ void HDC302xDecontaminationController::Start()
 }
 
 void HDC302xDecontaminationController::Stop()
+{
+	Stop(StopReason::Toggle);
+}
+
+void HDC302xDecontaminationController::Stop(StopReason reason)
 {
 	if (!mActive) {
 		return;
@@ -104,7 +122,17 @@ void HDC302xDecontaminationController::Stop()
 	DisplayManager::Instance().RefreshDisplay();
 #endif
 
-	LOG_INF("Decontamination stopped");
+	char buffer[16];
+	const char *humidityText;
+	if (mLastHumidityHundredths) {
+		snprintf(buffer, sizeof(buffer), "%u.%02u%%",
+		         *mLastHumidityHundredths / 100, *mLastHumidityHundredths % 100);
+		humidityText = buffer;
+	} else {
+		humidityText = "n/a";
+	}
+	LOG_INF("Decontamination stopped (final RH %s, reason: %s)",
+	        humidityText, ToString(reason));
 }
 
 void HDC302xDecontaminationController::RunCycle()
@@ -132,6 +160,7 @@ void HDC302xDecontaminationController::RunCycle()
 		humidityHundredths =
 			static_cast<uint16_t>(humidity.val1 * 100 + humidity.val2 / 10000);
 	}
+	mLastHumidityHundredths = humidityHundredths;
 
 	const int64_t elapsedMs = k_uptime_get() - mStartUptimeMs;
 
@@ -143,14 +172,18 @@ void HDC302xDecontaminationController::RunCycle()
 	        loggedHumidity / 100, loggedHumidity % 100);
 
 #ifdef CONFIG_DISPLAY
-	DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
-	DisplayManager::Instance().SetDecontaminationStatus(
-		true, static_cast<uint32_t>(elapsedMs / 1000));
-	DisplayManager::Instance().RefreshDisplay();
+	if (mCycleCount % kDisplayUpdateInterval == 0) {
+		DisplayManager::Instance().UpdateMeasurements(temperatureHundredths, humidityHundredths);
+		DisplayManager::Instance().SetDecontaminationStatus(
+			true, static_cast<uint32_t>(elapsedMs / 1000));
+		DisplayManager::Instance().RefreshDisplay();
+	}
 #endif
+	++mCycleCount;
 
-	if (elapsedMs >= kMaxDurationMs ||
-	    (humidityHundredths && *humidityHundredths < kHumidityExitHundredths)) {
-		Stop();
+	if (humidityHundredths && *humidityHundredths < kHumidityExitHundredths) {
+		Stop(StopReason::HumidityThresholdReached);
+	} else if (elapsedMs >= kMaxDurationMs) {
+		Stop(StopReason::TimerExpired);
 	}
 }
