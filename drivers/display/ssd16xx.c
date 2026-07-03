@@ -557,18 +557,26 @@ static void ssd16xx_get_capabilities(const struct device *dev,
 {
 	const struct ssd16xx_config *config = dev->config;
 	struct ssd16xx_data *data = dev->data;
+	uint16_t panel_h = config->height -
+			   config->height % EPD_PANEL_NUMOF_ROWS_PER_PAGE;
 
 	memset(caps, 0, sizeof(struct display_capabilities));
-	caps->x_resolution = config->width;
-	caps->y_resolution = config->height -
-			     config->height % EPD_PANEL_NUMOF_ROWS_PER_PAGE;
 	caps->supported_pixel_formats = PIXEL_FORMAT_MONO10;
 	caps->current_pixel_format = PIXEL_FORMAT_MONO10;
 	caps->screen_info = SCREEN_INFO_MONO_MSB_FIRST | SCREEN_INFO_EPD;
 
+	/*
+	 * Resolution is reported in the coordinate system consumers
+	 * address: swapped relative to the panel for 90/270 rotation.
+	 */
 	if (data->orientation == DISPLAY_ORIENTATION_NORMAL ||
 	    data->orientation == DISPLAY_ORIENTATION_ROTATED_180) {
+		caps->x_resolution = config->width;
+		caps->y_resolution = panel_h;
 		caps->screen_info |= SCREEN_INFO_MONO_VTILED;
+	} else {
+		caps->x_resolution = panel_h;
+		caps->y_resolution = config->width;
 	}
 
 	caps->current_orientation = data->orientation;
