@@ -19,6 +19,16 @@ config CHIP_ENABLE_ICD_SUPPORT
 config CHIP_ICD_LIT_SUPPORT
 	default y
 
+config APP_SSD16XX
+	bool "Application-local SSD16xx e-paper display driver"
+	depends on DISPLAY
+	select MIPI_DBI
+	help
+	  Compile the application's vendored copy of the Zephyr ssd16xx
+	  driver (drivers/display/ssd16xx.c), a superset of the in-tree
+	  driver. Enable together with CONFIG_SSD16XX=n so that exactly
+	  one driver binds the display node.
+
 config APP_HDC302X_MAINTENANCE_FEATURES
 	bool "Enable HDC302x maintenance features (humidity calibration and decontamination)"
 	depends on TI_HDC302X

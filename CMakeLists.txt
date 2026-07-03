@@ -46,6 +46,10 @@ target_sources_ifdef(CONFIG_APP_HDC302X_MAINTENANCE_FEATURES app PRIVATE
   src/hdc302x_humidity_calibrator.cpp
 )
 
+target_sources_ifdef(CONFIG_APP_SSD16XX app PRIVATE
+  drivers/display/ssd16xx.c
+)
+
 target_sources_ifdef(CONFIG_DISPLAY app PRIVATE
   src/display_manager.cpp
   src/thread_status.cpp
