@@ -152,6 +152,47 @@ Open this repo in Visual Studio Code and follow these steps:
     west flash -d build-nrf5340dk --no-rebuild
     ```
 
+    For the Seeed XIAO nRF54L15:
+    ```sh
+    west flash -d build-xiao
+    ```
+
+
+Production signing key
+======================
+
+The nRF54L15 builds sign the firmware (and DFU images) with your own Ed25519 key.
+The private key is **not** committed to this repo (it is gitignored), so you must
+generate it once before building:
+
+```sh
+mkdir -p keys
+python3 /opt/nordic/ncs/v3.3.0/bootloader/mcuboot/scripts/imgtool.py \
+    keygen -t ed25519 -k keys/mcuboot_ed25519_priv.pem
+```
+
+(Run from an nRF Connect SDK terminal so `imgtool`'s Python dependencies are available.)
+
+**Back this key up to secure offline storage immediately.** If it is lost, no
+future DFU image can ever be signed for already-deployed devices. The build picks
+the key up automatically via `BOOT_SIGNATURE_KEY_FILE` in `Kconfig.sysbuild`.
+
+By default the public verification key is **compiled into the MCUboot image**,
+which works with the Seeed XIAO's onboard CMSIS-DAP probe and a plain `west flash`.
+
+To instead store the public key in the SoC's hardware **Key Management Unit (KMU)**
+(more hardened, supports key revocation), build with
+`-DSB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU=y` and flash with a SEGGER J-Link:
+
+```sh
+west flash -d build-xiao --runner jlink --erase
+```
+
+KMU provisioning requires a J-Link (e.g. an nRF54L15 DK used as a debugger, or a
+standalone J-Link); the XIAO's CMSIS-DAP probe cannot provision the KMU. The
+private key and signing are identical to the compiled-in mode, so switching needs
+no new key.
+
 
 To modify the matter configuration:
 

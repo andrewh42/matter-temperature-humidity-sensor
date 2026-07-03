@@ -9,3 +9,7 @@
 # build
 /build*/
 /tests/build/
+
+# MCUboot / signing private keys — never commit
+/keys/
+*.pem
