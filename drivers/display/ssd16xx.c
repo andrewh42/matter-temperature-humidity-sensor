@@ -49,6 +49,8 @@ struct ssd16xx_quirks {
 	uint8_t pp_width_bits;
 	/* Width (bits) of integer type representing a y coordinate */
 	uint8_t pp_height_bits;
+	/* RAM X addresses count pixels rather than bytes (e.g. SSD1677) */
+	bool ram_x_in_pixels;
 
 	/*
 	 * Device specific flags to be included in
@@ -105,6 +107,7 @@ struct ssd16xx_config {
 	uint16_t height;
 	uint16_t width;
 	uint8_t tssv;
+	uint8_t driver_output_scan;
 };
 
 static int ssd16xx_set_profile(const struct device *dev,
@@ -198,7 +201,28 @@ static inline size_t push_y_param(const struct device *dev,
 	return 0;
 }
 
+/*
+ * Controllers with quirks->ram_x_in_pixels address RAM X positions in
+ * pixels rather than bytes. Widen a byte-unit span to the pixel edges
+ * facing the scan direction; other controllers use byte units as-is.
+ */
+static inline void ssd16xx_ram_x_span(const struct device *dev,
+				      uint16_t *sx, uint16_t *ex)
+{
+	const struct ssd16xx_config *config = dev->config;
 
+	if (!config->quirks->ram_x_in_pixels) {
+		return;
+	}
+
+	if (*sx <= *ex) {
+		*sx = *sx * SSD16XX_PIXELS_PER_BYTE;
+		*ex = *ex * SSD16XX_PIXELS_PER_BYTE + SSD16XX_PIXELS_PER_BYTE - 1;
+	} else {
+		*sx = *sx * SSD16XX_PIXELS_PER_BYTE + SSD16XX_PIXELS_PER_BYTE - 1;
+		*ex = *ex * SSD16XX_PIXELS_PER_BYTE;
+	}
+}
 
 static inline int ssd16xx_set_ram_param(const struct device *dev,
 					uint16_t sx, uint16_t ex,
@@ -397,6 +421,8 @@ static int ssd16xx_set_window(const struct device *dev,
 	default:
 		return -EINVAL;
 	}
+
+	ssd16xx_ram_x_span(dev, &x_start, &x_end);
 
 	err = ssd16xx_set_ram_param(dev, x_start, x_end, y_start, y_end);
 	if (err < 0) {
@@ -624,6 +650,8 @@ static int ssd16xx_clear_cntlr_mem(const struct device *dev, uint8_t ram_cmd)
 	const struct ssd16xx_config *config = dev->config;
 	uint16_t panel_h = config->height / EPD_PANEL_NUMOF_ROWS_PER_PAGE;
 	uint16_t last_gate = config->width - 1;
+	uint16_t first_ram_x = SSD16XX_PANEL_FIRST_PAGE;
+	uint16_t last_ram_x;
 	uint8_t clear_page[64];
 	int err;
 
@@ -641,14 +669,16 @@ static int ssd16xx_clear_cntlr_mem(const struct device *dev, uint8_t ram_cmd)
 		return err;
 	}
 
-	err = ssd16xx_set_ram_param(dev, SSD16XX_PANEL_FIRST_PAGE,
-				    panel_h - 1, last_gate,
+	last_ram_x = panel_h - 1;
+	ssd16xx_ram_x_span(dev, &first_ram_x, &last_ram_x);
+
+	err = ssd16xx_set_ram_param(dev, first_ram_x, last_ram_x, last_gate,
 				    SSD16XX_PANEL_FIRST_GATE);
 	if (err < 0) {
 		return err;
 	}
 
-	err = ssd16xx_set_ram_ptr(dev, SSD16XX_PANEL_FIRST_PAGE, last_gate);
+	err = ssd16xx_set_ram_ptr(dev, first_ram_x, last_gate);
 	if (err < 0) {
 		return err;
 	}
@@ -779,7 +809,7 @@ static int ssd16xx_set_profile(const struct device *dev,
 	}
 
 	gdo_len = push_y_param(dev, gdo, last_gate);
-	gdo[gdo_len++] = 0U;
+	gdo[gdo_len++] = config->driver_output_scan;
 	err = ssd16xx_write_cmd(dev, SSD16XX_CMD_GDO_CTRL, gdo, gdo_len);
 	if (err < 0) {
 		return err;
@@ -1019,6 +1049,18 @@ static struct ssd16xx_quirks quirks_solomon_ssd1681 = {
 };
 #endif
 
+#if DT_HAS_COMPAT_STATUS_OKAY(solomon_ssd1677)
+static const struct ssd16xx_quirks quirks_solomon_ssd1677 = {
+	.max_width = 680,
+	.max_height = 960,
+	.pp_width_bits = 16,
+	.pp_height_bits = 16,
+	.ram_x_in_pixels = true,
+	.ctrl2_full = SSD16XX_GEN2_CTRL2_DISPLAY,
+	.ctrl2_partial = SSD16XX_GEN2_CTRL2_DISPLAY | SSD16XX_GEN2_CTRL2_MODE2,
+};
+#endif
+
 #define SOFTSTART_ASSIGN(n)						\
 		.softstart = {						\
 			.data = softstart_##n,				\
@@ -1081,6 +1123,7 @@ static struct ssd16xx_quirks quirks_solomon_ssd1681 = {
 		.width = DT_PROP(n, width),				\
 		.rotation = DT_PROP(n, rotation),			\
 		.tssv = DT_PROP_OR(n, tssv, 0),				\
+		.driver_output_scan = DT_PROP_OR(n, driver_output_scan, 0), \
 		.softstart = SSD16XX_ASSIGN_ARRAY(n, softstart),	\
 		.profiles = {						\
 			[SSD16XX_PROFILE_FULL] =			\
@@ -1110,3 +1153,5 @@ DT_FOREACH_STATUS_OKAY_VARGS(solomon_ssd1680, SSD16XX_DEFINE,
 			     &quirks_solomon_ssd1680);
 DT_FOREACH_STATUS_OKAY_VARGS(solomon_ssd1681, SSD16XX_DEFINE,
 			     &quirks_solomon_ssd1681);
+DT_FOREACH_STATUS_OKAY_VARGS(solomon_ssd1677, SSD16XX_DEFINE,
+			     &quirks_solomon_ssd1677);

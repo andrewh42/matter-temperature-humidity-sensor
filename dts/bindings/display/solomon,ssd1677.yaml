@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Andrew Herbert
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Solomon SSD1677 EPD display controller (960 source x 680 gate), including
+  compatible clones such as the SE8350. Handled by the application-local
+  ssd16xx driver superset (CONFIG_APP_SSD16XX).
+
+compatible: "solomon,ssd1677"
+
+include: solomon,ssd16xx-common.yaml
+
+properties:
+  driver-output-scan:
+    type: int
+    default: 0
+    description: |
+      Third parameter byte of the Driver Output Control command (0x01),
+      holding the GD/SM/TB gate-scan bits. Panel-specific; the default 0
+      matches the controller's POR value. The KEGM042601M01 4.26" panel
+      requires 0x02 (SM=1, no odd/even gate interlacing).
