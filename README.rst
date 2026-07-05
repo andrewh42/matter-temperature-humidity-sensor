@@ -145,6 +145,8 @@ Open this repo in Visual Studio Code and follow these steps:
       -DEXTRA_CONF_FILE="epaper.conf" -DEXTRA_DTC_OVERLAY_FILE="app-hdc302x-xiao.overlay;epaper-xiao.overlay"
     ```
 
+    Add `xiao-external-antenna.overlay` as another EXTRA_DTC_OVERLAY_FILE if using the XIAO's external antenna.
+
 4. Flash the software using the nRF Connect flash action.
 
     For the Nordic nRF5340 DK:
