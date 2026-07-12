@@ -42,7 +42,7 @@ void DisplayManager::SignalDrawCallback(lv_event_t *event)
 {
 	auto      *self  = static_cast<DisplayManager *>(lv_event_get_user_data(event));
 	lv_layer_t *layer = lv_event_get_layer(event);
-	lv_obj_t   *obj   = static_cast<lv_obj_t *>(lv_event_get_target(event));
+	lv_obj_t   *obj   = lv_event_get_target_obj(event);
 
 	lv_area_t coords;
 	lv_obj_get_coords(obj, &coords);
@@ -153,7 +153,7 @@ void DisplayManager::Init()
 	k_work_submit_to_queue(&IoWorker::Instance().Queue(), &mInitWork);
 }
 
-void DisplayManager::InitHandler(k_work *)
+void DisplayManager::InitHandler(k_work * /* work */)
 {
 	Instance().InitOnWorker();
 }

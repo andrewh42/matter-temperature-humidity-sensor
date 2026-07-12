@@ -25,7 +25,7 @@ bool SetHdc302xMeasurementInterval(const device *hdc302xDevice, int32_t interval
 {
 	const struct sensor_value value = {.val1 = interval, .val2 = 0};
 	const int result = sensor_attr_set(hdc302xDevice, SENSOR_CHAN_ALL,
-	                                   (enum sensor_attribute)SENSOR_ATTR_INTEGRATION_TIME,
+	                                   static_cast<enum sensor_attribute>(SENSOR_ATTR_INTEGRATION_TIME),
 	                                   &value);
 	if (result != 0) {
 		LOG_ERR("Failed to set HDC302x integration time: %d", result);

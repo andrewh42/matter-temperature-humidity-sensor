@@ -8,6 +8,8 @@
 #include <openthread/link.h>
 #include <openthread/thread.h>
 
+#include <algorithm>
+
 using namespace ::chip::DeviceLayer;
 
 std::tuple<bool, uint8_t> GetThreadConnectivity()
@@ -28,9 +30,7 @@ std::tuple<bool, uint8_t> GetThreadConnectivity()
 		otNeighborInfoIterator iter = OT_NEIGHBOR_INFO_ITERATOR_INIT;
 		otNeighborInfo info;
 		while (otThreadGetNextNeighborInfo(ot, &iter, &info) == OT_ERROR_NONE) {
-			if (info.mLinkQualityIn > lqi) {
-				lqi = info.mLinkQualityIn;
-			}
+			lqi = std::max(info.mLinkQualityIn, lqi);
 		}
 	}
 	ThreadStackMgr().UnlockThreadStack();

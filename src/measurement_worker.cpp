@@ -12,7 +12,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 
-#include <errno.h>
+#include <cerrno>
 
 #ifdef CONFIG_DISPLAY
 #include "display_manager.h"
@@ -130,19 +130,19 @@ void MeasurementWorker::TickHandler(k_work *)
 	Instance().Tick();
 }
 
-void MeasurementWorker::TogglePrimaryHandler(k_work *)
+void MeasurementWorker::TogglePrimaryHandler(k_work * /* work */)
 {
 	Instance().TogglePrimary();
 }
 
 #ifdef CONFIG_APP_HDC302X_MAINTENANCE_FEATURES
-void MeasurementWorker::CalibrationRequestHandler(k_work *)
+void MeasurementWorker::CalibrationRequestHandler(k_work * /* work */)
 {
 	Instance().mCalibrationRequested = true;
 	LOG_INF("Humidity calibration requested (will apply on next measurement tick)");
 }
 
-void MeasurementWorker::ToggleDecontaminationHandler(k_work *)
+void MeasurementWorker::ToggleDecontaminationHandler(k_work * /* work */)
 {
 	Instance().ToggleDecontamination();
 }

@@ -37,7 +37,7 @@ tl::expected<Sensor::Readings, int> Sensor::Read()
 	const int temp_result = sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &sTemperature);
 	if (temp_result == 0) {
 		LOG_DBG("New %s temperature measurement %d.%06d C", name, sTemperature.val1, sTemperature.val2);
-		const int16_t temperatureHundredths =
+		const auto temperatureHundredths =
 			static_cast<int16_t>(sTemperature.val1 * 100 + sTemperature.val2 / 10000);
 		readings.temperature = temperatureAverage.update(temperatureHundredths);
 	} else {
@@ -48,7 +48,7 @@ tl::expected<Sensor::Readings, int> Sensor::Read()
 	const int humidity_result = sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &sHumidity);
 	if (humidity_result == 0) {
 		LOG_DBG("New %s relative humidity measurement %d.%06d%%", name, sHumidity.val1, sHumidity.val2);
-		const uint16_t humidityHundredths =
+		const auto humidityHundredths =
 			static_cast<uint16_t>(sHumidity.val1 * 100 + sHumidity.val2 / 10000);
 		readings.humidity = humidityAverage.update(humidityHundredths);
 	} else {

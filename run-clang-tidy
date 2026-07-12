@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# Lint project C++ sources with clang-tidy (checks configured in .clang-tidy)
+# against the XIAO build's compile database. With no arguments every
+# hand-written source in the database is linted; otherwise only the files
+# given on the command line.
+#
+# Requires clang-tidy (brew install llvm) and an existing build
+# (BUILD_DIR overrides the default of build-xiao/energy_display).
+
+set -e
+
+cd "$(dirname "$0")"
+
+build_dir=${BUILD_DIR:-build-xiao/temperature_sensor}
+compile_db=$build_dir/compile_commands.json
+
+if [ ! -f "$compile_db" ]; then
+  echo "$0: $compile_db not found - build first (see README.rst)" >&2
+  exit 1
+fi
+
+# Homebrew's llvm keg is not linked into PATH by default.
+clang_tidy=$(command -v clang-tidy || true)
+if [ -z "$clang_tidy" ]; then
+  for candidate in /opt/homebrew/opt/llvm/bin/clang-tidy /usr/local/opt/llvm/bin/clang-tidy; do
+    if [ -x "$candidate" ]; then
+      clang_tidy=$candidate
+      break
+    fi
+  done
+fi
+if [ -z "$clang_tidy" ]; then
+  echo "$0: clang-tidy not found - brew install llvm" >&2
+  exit 1
+fi
+
+# Homebrew's clang-tidy cannot locate the Zephyr ARM GCC toolchain's libstdc++
+# headers from the cross-compile commands. Derive the toolchain's C++ include
+# directories from the compiler path in the compile database (so this survives
+# toolchain updates) and pass them explicitly.
+gcc_command=$(python3 -c "import json; print(json.load(open('$compile_db'))[0]['command'].split()[0])")
+gxx_include=$(echo "${gcc_command%/bin/*}"/arm-zephyr-eabi/include/c++/*)
+
+# Clang rejects the GCC-only flags in Zephyr's compile commands with hard
+# driver errors ("unknown argument"), which end every run with a spurious
+# "Found compiler error(s)". Zephyr also defines macros with unparenthesised
+# negative values (e.g. -DNRF_802154_ECB_PRIORITY=-1), which trip
+# bugprone-macro-parentheses in every translation unit. Lint against a
+# sanitised copy of the database with the flags stripped and the negative
+# values parenthesised (semantically identical).
+tidy_db_dir=$build_dir/clang-tidy
+mkdir -p "$tidy_db_dir"
+python3 - "$compile_db" "$tidy_db_dir/compile_commands.json" <<'EOF'
+import json, re, sys
+
+gcc_only_flags = {"-fno-reorder-functions", "-mfp16-format=ieee"}
+negative_define = re.compile(r"^(-D[A-Za-z_][A-Za-z0-9_]*=)(-\d+)$")
+
+with open(sys.argv[1]) as database:
+    entries = json.load(database)
+for entry in entries:
+    entry["command"] = " ".join(
+        negative_define.sub(r"\1(\2)", word)
+        for word in entry["command"].split() if word not in gcc_only_flags)
+with open(sys.argv[2], "w") as sanitised:
+    json.dump(entries, sanitised)
+EOF
+
+if [ $# -eq 0 ]; then
+  # Every project .cpp the build compiles, excluding generated code (ZAP
+  # output, font files). Headers are analysed through their includers.
+  set -- $(python3 - "$compile_db" <<'EOF'
+import json, os, sys
+
+source_root = os.path.abspath("src")
+generated = (os.path.join(source_root, "default_zap"), os.path.join(source_root, "fonts"))
+
+files = sorted({entry["file"] for entry in json.load(open(sys.argv[1]))
+                if entry["file"].startswith(source_root + os.sep)
+                and entry["file"].endswith(".cpp")
+                and not entry["file"].startswith(generated)})
+print("\n".join(files))
+EOF
+)
+fi
+
+exec "$clang_tidy" -p "$tidy_db_dir" \
+  --extra-arg=-isystem"$gxx_include" \
+  --extra-arg=-isystem"$gxx_include/arm-zephyr-eabi" \
+  "$@"

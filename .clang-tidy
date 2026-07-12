@@ -1,0 +1,44 @@
+# clang-tidy configuration for the application sources (src/).
+#
+# Advisory by default (WarningsAsErrors is empty); tighten in CI if desired.
+# Run against a build's compile database, e.g.:
+#   clang-tidy -p build-xiao/energy_display src/ui/signal_indicator.cpp
+#   run-clang-tidy -p build-xiao/energy_display src/
+#
+# Note: clang-tidy has no mainline check that rewrites a hand-rolled max/sum
+# loop into std::max_element/std::accumulate, so that specific preference lives
+# in CLAUDE.md's coding-style section. These checks enforce the broader
+# modernization/readability/bugprone hygiene mechanically.
+
+Checks: >
+  -*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-implicit-bool-conversion,
+  -readability-function-cognitive-complexity,
+  -readability-math-missing-parentheses,
+  -bugprone-easily-swappable-parameters
+
+# Only report diagnostics for the project's own headers, not the SDK.
+HeaderFilterRegex: 'energy_display/src/.*'
+
+# readability-math-missing-parentheses is disabled above: readers here are
+# assumed to know arithmetic precedence, and the check has no IgnoreMacros
+# option, so it also fires on every Zephyr LOG_* expansion.
+CheckOptions:
+  # Zephyr's LOG_* macros expand to expressions these checks flag; keep the
+  # checks for hand-written code only.
+  readability-simplify-boolean-expr.IgnoreMacros: true
+  # The default statement threshold (800) counts the post-expansion AST, so
+  # log-heavy functions trip it regardless of their source size.
+  readability-function-size.StatementThreshold: -1
+
+WarningsAsErrors: ''
+FormatStyle: none
