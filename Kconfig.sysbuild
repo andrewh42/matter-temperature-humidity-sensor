@@ -58,6 +58,9 @@ config NETCORE_APP_UPDATE
 config DFU_MULTI_IMAGE_PACKAGE_NET
 	default y
 
+config SECURE_BOOT_SIGNING_KEY_FILE
+	default "${APP_DIR}/keys/nsib_ecdsa_priv.pem"
+
 endif # SOC_SERIES_NRF53
 
 #### Production image signing for the nRF54L series (XIAO + DK + tag)
@@ -85,15 +88,16 @@ endchoice
 config MCUBOOT_GENERATE_DEFAULT_KEY_FILE
 	default y if MCUBOOT_SIGNATURE_USING_KMU
 
+endif # SOC_SERIES_NRF54L
+
 # Production signing key, shared by both storage modes. ${APP_DIR} is expanded by
 # the image-signing CMake script to the application directory (a bare relative
 # path would instead be resolved against the west workspace topdir). This file is
 # gitignored and must be generated locally (see README); a fresh clone will not
 # build until it is supplied.
 config BOOT_SIGNATURE_KEY_FILE
-	default "${APP_DIR}/keys/mcuboot_ed25519_priv.pem"
-
-endif # SOC_SERIES_NRF54L
+	default "${APP_DIR}/keys/mcuboot_ed25519_priv.pem" if BOOT_SIGNATURE_TYPE_ED25519
+	default "${APP_DIR}/keys/mcuboot_rsa2048_priv.pem" if BOOT_SIGNATURE_TYPE_RSA
 
 if BOARD_NRF54L15DK || BOARD_NRF54LM20DK
 

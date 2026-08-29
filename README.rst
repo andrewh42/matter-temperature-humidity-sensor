@@ -144,6 +144,8 @@ Open this repo in Visual Studio Code and follow these steps:
 
   Add `xiao-external-antenna.overlay` as another EXTRA_DTC_OVERLAY_FILE if using the XIAO's external antenna.
 
+  Add `-DCONF_FILE=prj_release.conf` to the build command for a production build.
+
 4. Flash the software using the nRF Connect flash action.
 
   For the Nordic nRF5340 DK::
@@ -155,15 +157,18 @@ Open this repo in Visual Studio Code and follow these steps:
     west flash -d build-xiao
 
 
-Production signing key
-======================
+Production signing keys
+=======================
+
+OTA update build signing key (nRF54xx series only)
+--------------------------------------------------
 
 The nRF54L15 builds sign the firmware (and DFU images) with your own Ed25519 key.
 The private key is **not** committed to this repo (it is gitignored), so you must
 generate it once before building::
 
   mkdir -p keys
-  python3 /opt/nordic/ncs/v3.3.0/bootloader/mcuboot/scripts/imgtool.py \
+  python3 /opt/nordic/ncs/v3.4.0/bootloader/mcuboot/scripts/imgtool.py \
       keygen -t ed25519 -k keys/mcuboot_ed25519_priv.pem
 
 (Run from an nRF Connect SDK terminal so `imgtool`'s Python dependencies are available.)
@@ -186,6 +191,26 @@ standalone J-Link); the XIAO's CMSIS-DAP probe cannot provision the KMU. The
 private key and signing are identical to the compiled-in mode, so switching needs
 no new key.
 
+
+Signing keys (nRF5340 only)
+---------------------------
+
+Run this once before building::
+
+  mkdir -p keys
+  python3 /opt/nordic/ncs/v3.4.0/bootloader/mcuboot/scripts/imgtool.py \
+      keygen -t rsa-2048 -k keys/mcuboot_rsa2048_priv.pem
+  python3 /opt/nordic/ncs/v3.4.0/bootloader/mcuboot/scripts/imgtool.py \
+      keygen -t ecdsa-p256 -k keys/nsib_ecdsa_priv.pem"
+
+**Back these keys up to secure offline storage immediately.** If it is lost, no
+future DFU image can ever be signed for already-deployed devices. The build picks
+the key up automatically via `BOOT_SIGNATURE_KEY_FILE` and `SECURE_BOOT_SIGNING_KEY_FILE`
+in `Kconfig.sysbuild`.
+
+
+Matter configuration
+====================
 
 To modify the matter configuration:
 
