@@ -99,7 +99,7 @@ private:
 		Unavailable   = 2,
 	};
 
-	static constexpr uint8_t kFullUpdateInterval = 200;
+	static constexpr uint8_t kFullUpdateInterval = 400;
 
 	/// In single-sensor mode, the primary name and HDC302x humidity
 	/// calibration offset display for this many refreshes after boot,
