@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Nordic Semiconductor ASA
+ * Copyright (c) 2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include <samples/matter/nrf54lm20_cpuapp_internal_partitions.dtsi>
+#include <samples/matter/nrf54l15_cpuapp_internal_partitions.dtsi>
 
 / {
 	chosen {

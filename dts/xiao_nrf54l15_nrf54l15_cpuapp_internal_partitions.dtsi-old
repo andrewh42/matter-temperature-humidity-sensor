@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2026 Andrew Herbert
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/delete-node/ &boot_partition;
+/delete-node/ &slot0_partition;
+/delete-node/ &slot1_partition;
+/delete-node/ &storage_partition;
+
+&cpuapp_rram {
+	partitions {
+		boot_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(52)>;
+		};
+
+		slot0_partition: partition@d000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x0000d000 DT_SIZE_K(880)>;
+		};
+
+		slot1_partition: partition@e9000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-1";
+			reg = <0x00e9000 DT_SIZE_K(556)>;
+		};
+
+		factory_data_partition: partition@174000 {
+			compatible = "zephyr,mapped-partition";
+			label = "factory-data";
+			reg = <0x00174000 DT_SIZE_K(4)>;
+		};
+
+		storage_partition: partition@175000 {
+			compatible = "zephyr,mapped-partition";
+			label = "storage";
+			reg = <0x00175000 DT_SIZE_K(32)>;
+		};
+	};
+};

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include "../dts/xiao_nrf54l15_nrf54l15_cpuapp_internal_partitions.dtsi"
+
 / {
 	chosen {
 		zephyr,flash-controller = &rram_controller; /* from boards/nordic/nrf54l15dk/nrf54l_05_10_15_cpuapp_common.dtsi */
